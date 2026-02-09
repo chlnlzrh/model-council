@@ -377,6 +377,205 @@ const decoder = new TextDecoder();
 
 ---
 
+## DS-5.1: UI Standards (from CLAUDE.md)
+
+All UI implementation must follow these specifications. Sourced from the project's governing CLAUDE.md.
+
+### Typography
+
+| Element | Specification |
+|---------|--------------|
+| Font family | Inter (via `next/font/google`) |
+| Baseline size | `text-xs` (`12px`) |
+| Baseline weight | `font-normal` (`400`) |
+| Headers | `font-bold` allowed, must remain `text-xs` |
+| Navigation labels | `text-xs font-normal` (never bold) |
+| Dashboard content | Match menu typography exactly |
+| Line height | Tailwind tokens only (`leading-*`) |
+| Scale | Tokenized — no raw `px` or `rem` values outside tokens |
+
+### Icons
+
+| Aspect | Rule |
+|--------|------|
+| Library | Lucide React exclusively |
+| Max size | 16x16px |
+| Stroke | Default (2px) |
+
+### Color System
+
+| Aspect | Rule |
+|--------|------|
+| Tokens | Semantic only: `primary`, `secondary`, `success`, `error`, `warning`, `info` |
+| Hardcoded values | **FORBIDDEN** — no hex/rgb/hsl literals |
+| Contrast | WCAG AA: 4.5:1 normal text, 3:1 large text |
+| Color blindness | Never rely solely on color to convey meaning |
+| Dark mode | Full light + dark implementations with visual parity |
+| System preference | `prefers-color-scheme` detection via `next-themes` |
+
+### Spacing
+
+| Aspect | Rule |
+|--------|------|
+| System | Tailwind tokens only (4px/8px base grid) |
+| Custom values | **FORBIDDEN** — use nearest Tailwind token |
+| Menu items | `py-1` to `py-1.5` max |
+| Section gaps | `space-y-0.5` |
+| Nesting indent | `ml-4` (level 2), `ml-6` (level 3), max 3 levels |
+
+### Menu System
+
+| Aspect | Rule |
+|--------|------|
+| Default state | All sections collapsed (`expandedSections: []`) |
+| Selected item | `text-black dark:text-white` |
+| Unselected item | `text-gray-500` |
+| Hover state | `text-gray-700 dark:text-gray-300` with transition |
+| Headers | Same `text-xs`, chevron indicators, full-area click targets |
+| Content | Essential labels only — no descriptions or explanations |
+| Persistence | Expanded/collapsed state in `localStorage` |
+| Search | `text-xs`, real-time filter, `Cmd/Ctrl+K` shortcut |
+| Scroll | Smooth scroll, visible scrollbar on hover, sticky headers |
+
+### Sidebar
+
+| Breakpoint | Behavior |
+|-----------|----------|
+| Desktop (≥1024px) | Collapsed icon-only by default, expands on hover/click |
+| Tablet (768-1023px) | Hidden, toggle via hamburger |
+| Mobile (<768px) | Hamburger → full-screen slide panel |
+
+| Mobile Detail | Rule |
+|--------------|------|
+| Touch spacing | `py-2` minimum |
+| Dismiss | Swipe gesture supported |
+| Backdrop | Blur + dim overlay |
+| Animation | 300ms spring transition |
+
+### Animation & Motion
+
+| Aspect | Rule |
+|--------|------|
+| Duration | 300ms spring (default) |
+| Frame rate | 60fps minimum |
+| Easing | Spring curve with staggered reveals |
+| Reduced motion | Respect `prefers-reduced-motion` — disable animations, provide equivalent static feedback |
+| Purpose | Motion must clarify state or provide feedback — no gratuitous animation |
+| Backdrop effects | Blur + shadow gradients for overlays |
+
+### Responsive Breakpoints
+
+| Name | Width | Priority |
+|------|-------|----------|
+| Mobile S | 320px | Required |
+| Mobile L | 375px | Required |
+| Tablet | 768px | Required |
+| Desktop | 1024px | Required |
+| Desktop L | 1440px | Required |
+
+**Approach:** Mobile-first — start at 320px, scale up.
+
+### Touch Targets
+
+| Platform | Minimum Size |
+|----------|-------------|
+| iOS | 44×44pt |
+| Android | 48×48dp |
+| Spacing | Adequate gap between adjacent targets |
+
+### Loading States
+
+| Condition | Pattern |
+|-----------|---------|
+| Content loading | Skeleton screens (fixed dimensions to prevent CLS) |
+| Actions < 3s | Spinner |
+| Actions > 3s | Progress bar |
+| Actions > 5s | Progress bar + informative message |
+
+### Empty States
+
+| Element | Required |
+|---------|----------|
+| Explanation | Clear reason why content is empty |
+| Next step | Actionable call-to-action |
+| Visual | Helpful illustration or icon |
+| Design | Consistent with app design language |
+
+### Error States
+
+| Element | Required |
+|---------|----------|
+| What | What went wrong (user-friendly terms) |
+| Why | Why it happened (if known) |
+| Fix | How to resolve (actionable steps) |
+| Fallback | Retry button or alternative path |
+
+### Modals & Dialogs
+
+| Behavior | Rule |
+|----------|------|
+| Background | Dim overlay |
+| Close: Escape | Required |
+| Close: Background click | Yes (unless destructive action) |
+| Focus | Trapped inside modal while open |
+| Focus return | Return to trigger element on close |
+| Background scroll | Prevented |
+| Title | Clear and descriptive |
+| Actions | Explicit buttons — cancel always available |
+| Async actions | Loading state on confirm button |
+
+### Accessibility
+
+| Aspect | Rule |
+|--------|------|
+| Keyboard nav | Full: arrow keys, Enter, Escape, Tab |
+| ARIA labels | All interactive elements, with expansion state |
+| Focus trapping | Inside open menus and modals |
+| Screen readers | Stage panel changes announced |
+| Component library | Shadcn (Radix) provides baseline a11y |
+
+### Component State Completeness
+
+Every interactive component must implement all 6 states:
+
+| State | Required |
+|-------|----------|
+| Default | Yes |
+| Hover | Yes |
+| Focus | Yes (visible focus ring) |
+| Loading | Yes (for async) |
+| Error | Yes |
+| Disabled | Yes |
+
+### Performance Budgets
+
+| Metric | Target |
+|--------|--------|
+| First Contentful Paint | < 1.5s |
+| Time to Interactive | < 3s |
+| Cumulative Layout Shift | < 0.1 |
+| First Input Delay | < 100ms |
+| Lighthouse Performance | > 90 |
+| Initial bundle | < 200KB |
+
+### Data Tables (Analytics)
+
+| Breakpoint | Pattern |
+|-----------|---------|
+| Mobile | Card layout per row |
+| Desktop | Standard table with horizontal scroll if needed |
+| Features | Sort by columns, filter controls, pagination |
+
+### Breadcrumbs
+
+| Aspect | Rule |
+|--------|------|
+| Typography | `text-xs` |
+| Behavior | Reflect current menu selection, interactive links |
+| Hierarchy | Match navigation depth |
+
+---
+
 ## DS-6: Database Schema
 
 ### Entity-Relationship Diagram
