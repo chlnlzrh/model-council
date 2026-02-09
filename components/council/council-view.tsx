@@ -10,6 +10,7 @@ import { Stage1Panel } from "./stage1-panel";
 import { Stage2Panel } from "./stage2-panel";
 import { Stage3Panel } from "./stage3-panel";
 import { ChatInput } from "./chat-input";
+import { Download } from "lucide-react";
 
 interface HistoryMessage {
   role: "user" | "assistant";
@@ -152,6 +153,17 @@ export function CouncilView({
     prevLoadingRef.current = stream.isLoading;
   }, [stream.isLoading, stream.stage3]);
 
+  const handleExport = useCallback(() => {
+    const id = stream.conversationId ?? loadConversationId;
+    if (!id) return;
+    window.open(`/api/conversations/${id}/export`, "_blank");
+  }, [stream.conversationId, loadConversationId]);
+
+  const canExport =
+    !stream.isLoading &&
+    history.length > 0 &&
+    (stream.conversationId || loadConversationId);
+
   const hasActiveResponse =
     stream.isLoading ||
     stream.stage1.length > 0 ||
@@ -159,6 +171,20 @@ export function CouncilView({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Export button */}
+      {canExport && (
+        <div className="flex justify-end px-4 pt-2">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title="Export as Markdown"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export
+          </button>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-3xl space-y-4">
