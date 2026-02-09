@@ -17,6 +17,8 @@ export interface CouncilStreamState {
   stage2Metadata: Stage2Metadata | null;
   stage3: Stage3Response | null;
   title: string | null;
+  conversationId: string | null;
+  messageId: string | null;
   stageStatus: {
     stage1: StageStatus;
     stage2: StageStatus;
@@ -34,6 +36,8 @@ const INITIAL_STATE: CouncilStreamState = {
   stage2Metadata: null,
   stage3: null,
   title: null,
+  conversationId: null,
+  messageId: null,
   stageStatus: { stage1: "pending", stage2: "pending", stage3: "pending" },
   currentStage: 0,
   isLoading: false,
@@ -147,12 +151,19 @@ function applyEvent(
   event: SSEEvent
 ): CouncilStreamState {
   switch (event.type) {
-    case "stage1_start":
+    case "stage1_start": {
+      const startData = event.data as {
+        conversationId?: string;
+        messageId?: string;
+      } | undefined;
       return {
         ...prev,
         currentStage: 1,
+        conversationId: startData?.conversationId ?? prev.conversationId,
+        messageId: startData?.messageId ?? prev.messageId,
         stageStatus: { ...prev.stageStatus, stage1: "loading" },
       };
+    }
 
     case "stage1_complete":
       return {

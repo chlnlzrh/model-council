@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -16,16 +17,23 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { data: session } = useSession();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Load conversations from DB
+  useEffect(() => {
+    if (!session?.user) return;
+    fetch("/api/conversations")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: Conversation[]) => setConversations(data))
+      .catch(() => {});
+  }, [session?.user]);
+
   const handleNew = useCallback(() => {
     const id = crypto.randomUUID();
-    setConversations((prev) => [
-      { id, title: "New Council" },
-      ...prev,
-    ]);
+    setConversations((prev) => [{ id, title: "New Council" }, ...prev]);
     setActiveId(id);
     setSidebarOpen(false);
   }, []);
@@ -39,6 +47,17 @@ export default function DashboardLayout({
     setConversations((prev) =>
       prev.map((c) => (c.id === id ? { ...c, title } : c))
     );
+  }, []);
+
+  // When SSE creates a conversation, add it to the list
+  const addConversation = useCallback((id: string, title: string) => {
+    setConversations((prev) => {
+      if (prev.some((c) => c.id === id)) {
+        return prev.map((c) => (c.id === id ? { ...c, title } : c));
+      }
+      return [{ id, title }, ...prev];
+    });
+    setActiveId(id);
   }, []);
 
   return (
@@ -75,7 +94,6 @@ export default function DashboardLayout({
           <span className="text-xs font-bold">Model Council</span>
         </div>
 
-        {/* Pass context to children via data attributes or context */}
         <DashboardContext.Provider
           value={{
             conversations,
@@ -83,6 +101,7 @@ export default function DashboardLayout({
             setActiveId,
             handleNew,
             updateTitle,
+            addConversation,
           }}
         >
           {children}
@@ -101,6 +120,7 @@ interface DashboardContextValue {
   setActiveId: (id: string | null) => void;
   handleNew: () => void;
   updateTitle: (id: string, title: string) => void;
+  addConversation: (id: string, title: string) => void;
 }
 
 const DashboardContext = createContext<DashboardContextValue>({
@@ -109,6 +129,7 @@ const DashboardContext = createContext<DashboardContextValue>({
   setActiveId: () => {},
   handleNew: () => {},
   updateTitle: () => {},
+  addConversation: () => {},
 });
 
 export function useDashboard() {

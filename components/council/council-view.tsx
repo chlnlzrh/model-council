@@ -12,9 +12,13 @@ import { ChatInput } from "./chat-input";
 
 interface CouncilViewProps {
   onTitleChange?: (title: string) => void;
+  onConversationCreated?: (id: string, title: string) => void;
 }
 
-export function CouncilView({ onTitleChange }: CouncilViewProps) {
+export function CouncilView({
+  onTitleChange,
+  onConversationCreated,
+}: CouncilViewProps) {
   const stream = useCouncilStream();
   const [messages, setMessages] = useState<
     { role: "user" | "assistant"; content: string }[]
@@ -36,12 +40,22 @@ export function CouncilView({ onTitleChange }: CouncilViewProps) {
     else if (stream.stageStatus.stage1 === "done") setActiveTab("responses");
   }, [stream.stageStatus]);
 
+  // Notify parent when conversation is created by SSE
+  useEffect(() => {
+    if (stream.conversationId && onConversationCreated) {
+      onConversationCreated(stream.conversationId, "New Council");
+    }
+  }, [stream.conversationId, onConversationCreated]);
+
   // Notify parent of title changes
   useEffect(() => {
     if (stream.title && onTitleChange) {
       onTitleChange(stream.title);
     }
-  }, [stream.title, onTitleChange]);
+    if (stream.title && stream.conversationId && onConversationCreated) {
+      onConversationCreated(stream.conversationId, stream.title);
+    }
+  }, [stream.title, onTitleChange, stream.conversationId, onConversationCreated]);
 
   // Auto-scroll
   useEffect(() => {

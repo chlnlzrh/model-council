@@ -3,16 +3,21 @@
  *
  * POST /api/council/stream
  *
+ * Accepts: { question, conversationId?, councilModels?, chairmanModel? }
+ *
  * Emits 9 SSE event types in order:
  *   stage1_start → stage1_complete →
  *   stage2_start → stage2_complete →
  *   stage3_start → stage3_complete →
  *   title_complete → complete
  *   (error on failure)
+ *
+ * Saves all results to the database under the authenticated user.
  */
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { auth } from "@/lib/auth/config";
 import {
   stage1Collect,
   stage2Rank,
@@ -21,9 +26,19 @@ import {
 } from "@/lib/council/orchestrator";
 import type { CouncilConfig, SSEEvent } from "@/lib/council/types";
 import { DEFAULT_COUNCIL_CONFIG } from "@/lib/council/types";
+import {
+  createConversation,
+  createMessage,
+  saveStage1Responses,
+  saveStage2Rankings,
+  saveStage2LabelMapEntries,
+  saveStage3Synthesis,
+  updateConversationTitle,
+} from "@/lib/db/queries";
 
 const RequestSchema = z.object({
   question: z.string().min(1, "Question is required"),
+  conversationId: z.string().optional(),
   councilModels: z.array(z.string()).optional(),
   chairmanModel: z.string().optional(),
 });
@@ -33,6 +48,14 @@ function sseEncode(event: SSEEvent): string {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const body = await request.json();
   const parsed = RequestSchema.safeParse(body);
 
@@ -43,7 +66,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { question, councilModels, chairmanModel } = parsed.data;
+  const { question, conversationId, councilModels, chairmanModel } =
+    parsed.data;
 
   const config: CouncilConfig = {
     councilModels: councilModels ?? DEFAULT_COUNCIL_CONFIG.councilModels,
@@ -56,12 +80,44 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // --- Stage 1: Collect responses ---
+        // Create or use existing conversation
+        let convId = conversationId;
+        if (!convId) {
+          const conv = await createConversation({
+            userId: session.user!.id!,
+          });
+          convId = conv.id;
+        }
+
+        // Save user message
+        const userMsg = await createMessage({
+          conversationId: convId,
+          role: "user",
+          content: question,
+        });
+
+        // Create placeholder assistant message (content updated after stage 3)
+        const assistantMsg = await createMessage({
+          conversationId: convId,
+          role: "assistant",
+          content: "",
+        });
+
+        // Send conversation metadata
         controller.enqueue(
-          encoder.encode(sseEncode({ type: "stage1_start" }))
+          encoder.encode(
+            sseEncode({
+              type: "stage1_start",
+              data: { conversationId: convId, messageId: assistantMsg.id },
+            })
+          )
         );
 
+        // --- Stage 1: Collect responses ---
         const stage1Results = await stage1Collect(question, config);
+
+        // Save stage 1 to DB
+        await saveStage1Responses(assistantMsg.id, stage1Results);
 
         controller.enqueue(
           encoder.encode(
@@ -90,6 +146,15 @@ export async function POST(request: NextRequest) {
         const { rankings: stage2Results, metadata: stage2Metadata } =
           await stage2Rank(question, stage1Results, config);
 
+        // Save stage 2 to DB
+        await Promise.all([
+          saveStage2Rankings(assistantMsg.id, stage2Results),
+          saveStage2LabelMapEntries(
+            assistantMsg.id,
+            stage2Metadata.labelToModel
+          ),
+        ]);
+
         controller.enqueue(
           encoder.encode(
             sseEncode({
@@ -112,14 +177,19 @@ export async function POST(request: NextRequest) {
           config
         );
 
+        // Save stage 3 to DB
+        await saveStage3Synthesis(assistantMsg.id, stage3Result);
+
         controller.enqueue(
           encoder.encode(
             sseEncode({ type: "stage3_complete", data: stage3Result })
           )
         );
 
-        // --- Title generation (non-blocking) ---
+        // --- Title generation ---
         const title = await generateTitle(question);
+        await updateConversationTitle(convId, title);
+
         controller.enqueue(
           encoder.encode(
             sseEncode({ type: "title_complete", data: { title } })
