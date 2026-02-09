@@ -16,6 +16,7 @@ export default function CouncilPage() {
       onConversationCreated={addConversation}
       councilModels={modelConfig.councilModels}
       chairmanModel={modelConfig.chairmanModel}
+      loadConversationId={activeId}
     />
   );
 }

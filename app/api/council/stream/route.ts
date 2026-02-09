@@ -5,14 +5,8 @@
  *
  * Accepts: { question, conversationId?, councilModels?, chairmanModel? }
  *
- * Emits 9 SSE event types in order:
- *   stage1_start → stage1_complete →
- *   stage2_start → stage2_complete →
- *   stage3_start → stage3_complete →
- *   title_complete → complete
- *   (error on failure)
- *
- * Saves all results to the database under the authenticated user.
+ * Supports multi-turn: when conversationId is provided, loads conversation
+ * history and includes it as context for Stage 1 and Stage 3.
  */
 
 import { NextRequest } from "next/server";
@@ -24,11 +18,17 @@ import {
   stage3Synthesize,
   generateTitle,
 } from "@/lib/council/orchestrator";
-import type { CouncilConfig, SSEEvent } from "@/lib/council/types";
+import type {
+  CouncilConfig,
+  SSEEvent,
+  ConversationTurn,
+} from "@/lib/council/types";
 import { DEFAULT_COUNCIL_CONFIG } from "@/lib/council/types";
 import {
   createConversation,
   createMessage,
+  getMessagesByConversation,
+  getStage3ByMessage,
   saveStage1Responses,
   saveStage2Rankings,
   saveStage2LabelMapEntries,
@@ -45,6 +45,32 @@ const RequestSchema = z.object({
 
 function sseEncode(event: SSEEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
+}
+
+/**
+ * Build conversation history from existing messages.
+ * For each user message, include its content.
+ * For each assistant message, include the Stage 3 synthesis (the final answer).
+ */
+async function loadConversationHistory(
+  conversationId: string
+): Promise<ConversationTurn[]> {
+  const messages = await getMessagesByConversation(conversationId);
+  const history: ConversationTurn[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      history.push({ role: "user", content: msg.content });
+    } else if (msg.role === "assistant") {
+      // Load the Stage 3 synthesis for this assistant message
+      const synthesis = await getStage3ByMessage(msg.id);
+      if (synthesis) {
+        history.push({ role: "assistant", content: synthesis.response });
+      }
+    }
+  }
+
+  return history;
 }
 
 export async function POST(request: NextRequest) {
@@ -82,21 +108,28 @@ export async function POST(request: NextRequest) {
       try {
         // Create or use existing conversation
         let convId = conversationId;
+        let isNewConversation = false;
         if (!convId) {
           const conv = await createConversation({
             userId: session.user!.id!,
           });
           convId = conv.id;
+          isNewConversation = true;
         }
 
+        // Load conversation history for multi-turn context
+        const history = isNewConversation
+          ? []
+          : await loadConversationHistory(convId);
+
         // Save user message
-        const userMsg = await createMessage({
+        await createMessage({
           conversationId: convId,
           role: "user",
           content: question,
         });
 
-        // Create placeholder assistant message (content updated after stage 3)
+        // Create placeholder assistant message
         const assistantMsg = await createMessage({
           conversationId: convId,
           role: "assistant",
@@ -113,10 +146,9 @@ export async function POST(request: NextRequest) {
           )
         );
 
-        // --- Stage 1: Collect responses ---
-        const stage1Results = await stage1Collect(question, config);
+        // --- Stage 1: Collect responses (with history for multi-turn) ---
+        const stage1Results = await stage1Collect(question, config, history);
 
-        // Save stage 1 to DB
         await saveStage1Responses(assistantMsg.id, stage1Results);
 
         controller.enqueue(
@@ -138,7 +170,7 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        // --- Stage 2: Rank responses ---
+        // --- Stage 2: Rank responses (no history — ranking is context-free) ---
         controller.enqueue(
           encoder.encode(sseEncode({ type: "stage2_start" }))
         );
@@ -146,7 +178,6 @@ export async function POST(request: NextRequest) {
         const { rankings: stage2Results, metadata: stage2Metadata } =
           await stage2Rank(question, stage1Results, config);
 
-        // Save stage 2 to DB
         await Promise.all([
           saveStage2Rankings(assistantMsg.id, stage2Results),
           saveStage2LabelMapEntries(
@@ -165,7 +196,7 @@ export async function POST(request: NextRequest) {
           )
         );
 
-        // --- Stage 3: Synthesize ---
+        // --- Stage 3: Synthesize (with history for multi-turn) ---
         controller.enqueue(
           encoder.encode(sseEncode({ type: "stage3_start" }))
         );
@@ -174,10 +205,10 @@ export async function POST(request: NextRequest) {
           question,
           stage1Results,
           stage2Results,
-          config
+          config,
+          history
         );
 
-        // Save stage 3 to DB
         await saveStage3Synthesis(assistantMsg.id, stage3Result);
 
         controller.enqueue(
@@ -186,15 +217,16 @@ export async function POST(request: NextRequest) {
           )
         );
 
-        // --- Title generation ---
-        const title = await generateTitle(question);
-        await updateConversationTitle(convId, title);
-
-        controller.enqueue(
-          encoder.encode(
-            sseEncode({ type: "title_complete", data: { title } })
-          )
-        );
+        // --- Title generation (only for new conversations) ---
+        if (isNewConversation) {
+          const title = await generateTitle(question);
+          await updateConversationTitle(convId, title);
+          controller.enqueue(
+            encoder.encode(
+              sseEncode({ type: "title_complete", data: { title } })
+            )
+          );
+        }
 
         // --- Complete ---
         controller.enqueue(

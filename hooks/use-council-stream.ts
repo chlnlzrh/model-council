@@ -71,18 +71,25 @@ export function useCouncilStream() {
     async (
       question: string,
       councilModels?: string[],
-      chairmanModel?: string
+      chairmanModel?: string,
+      existingConversationId?: string
     ) => {
-      setState({
+      // For follow-ups, preserve conversationId but reset stage data
+      setState((prev) => ({
         ...INITIAL_STATE,
+        conversationId: existingConversationId ?? prev.conversationId,
         isLoading: true,
-      });
+      }));
       startTimer();
 
       try {
         const body: Record<string, unknown> = { question };
         if (councilModels) body.councilModels = councilModels;
         if (chairmanModel) body.chairmanModel = chairmanModel;
+
+        // Use existing conversation ID for follow-ups
+        const convId = existingConversationId;
+        if (convId) body.conversationId = convId;
 
         const response = await fetch("/api/council/stream", {
           method: "POST",
@@ -143,7 +150,12 @@ export function useCouncilStream() {
     setState(INITIAL_STATE);
   }, [stopTimer]);
 
-  return { ...state, sendMessage, reset };
+  // Set conversationId externally (e.g. when loading a conversation)
+  const setConversationId = useCallback((id: string | null) => {
+    setState((prev) => ({ ...prev, conversationId: id }));
+  }, []);
+
+  return { ...state, sendMessage, reset, setConversationId };
 }
 
 function applyEvent(

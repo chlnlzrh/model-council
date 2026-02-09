@@ -4,10 +4,14 @@
  * Stage 1: Collect — query each council model in parallel
  * Stage 2: Rank   — anonymize responses, have each model rank them
  * Stage 3: Synthesize — chairman model produces final answer
+ *
+ * Supports multi-turn conversations by accepting conversation history
+ * and including it as context for Stage 1 and Stage 3.
  */
 
 import type {
   CouncilConfig,
+  ConversationTurn,
   Stage1Response,
   Stage2Response,
   Stage3Response,
@@ -15,7 +19,12 @@ import type {
   CouncilResult,
 } from "./types";
 import { DEFAULT_COUNCIL_CONFIG } from "./types";
-import { queryModel, queryModelsParallel } from "./openrouter";
+import {
+  queryModel,
+  queryModelsParallel,
+  queryModelsParallelWithMessages,
+  queryModelWithMessages,
+} from "./openrouter";
 import {
   parseRanking,
   calculateAggregateRankings,
@@ -28,18 +37,51 @@ import {
 } from "./prompts";
 
 // ---------------------------------------------------------------------------
+// Helpers — build messages array from conversation history
+// ---------------------------------------------------------------------------
+
+function buildMessagesWithHistory(
+  history: ConversationTurn[],
+  currentPrompt: string
+): Array<{ role: "user" | "assistant"; content: string }> {
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
+
+  // Add history as alternating user/assistant turns
+  for (const turn of history) {
+    messages.push({ role: turn.role, content: turn.content });
+  }
+
+  // Add current query as the latest user message
+  messages.push({ role: "user", content: currentPrompt });
+
+  return messages;
+}
+
+// ---------------------------------------------------------------------------
 // Stage 1 — Collect individual responses
 // ---------------------------------------------------------------------------
 
 export async function stage1Collect(
   userQuery: string,
-  config: CouncilConfig = DEFAULT_COUNCIL_CONFIG
+  config: CouncilConfig = DEFAULT_COUNCIL_CONFIG,
+  history: ConversationTurn[] = []
 ): Promise<Stage1Response[]> {
-  const results = await queryModelsParallel(
-    config.councilModels,
-    userQuery,
-    config.timeoutMs
-  );
+  let results: Map<string, { content: string; responseTimeMs: number }>;
+
+  if (history.length > 0) {
+    const messages = buildMessagesWithHistory(history, userQuery);
+    results = await queryModelsParallelWithMessages(
+      config.councilModels,
+      messages,
+      config.timeoutMs
+    );
+  } else {
+    results = await queryModelsParallel(
+      config.councilModels,
+      userQuery,
+      config.timeoutMs
+    );
+  }
 
   const responses: Stage1Response[] = [];
   for (const [model, result] of results) {
@@ -78,7 +120,7 @@ export async function stage2Rank(
     labeledResponses,
   });
 
-  // Have each council model evaluate and rank
+  // Have each council model evaluate and rank (no history needed — ranking is context-free)
   const results = await queryModelsParallel(
     config.councilModels,
     rankingPrompt,
@@ -120,7 +162,8 @@ export async function stage3Synthesize(
   userQuery: string,
   stage1Results: Stage1Response[],
   stage2Results: Stage2Response[],
-  config: CouncilConfig = DEFAULT_COUNCIL_CONFIG
+  config: CouncilConfig = DEFAULT_COUNCIL_CONFIG,
+  history: ConversationTurn[] = []
 ): Promise<Stage3Response> {
   const synthesisPrompt = buildSynthesisPrompt({
     userQuery,
@@ -128,11 +171,22 @@ export async function stage3Synthesize(
     stage2Results,
   });
 
-  const result = await queryModel(
-    config.chairmanModel,
-    synthesisPrompt,
-    config.timeoutMs
-  );
+  let result;
+  if (history.length > 0) {
+    // Include conversation history so the chairman has full context
+    const messages = buildMessagesWithHistory(history, synthesisPrompt);
+    result = await queryModelWithMessages(
+      config.chairmanModel,
+      messages,
+      config.timeoutMs
+    );
+  } else {
+    result = await queryModel(
+      config.chairmanModel,
+      synthesisPrompt,
+      config.timeoutMs
+    );
+  }
 
   if (!result) {
     return {
@@ -171,10 +225,11 @@ export async function generateTitle(userQuery: string): Promise<string> {
 
 export async function runFullCouncil(
   userQuery: string,
-  config: CouncilConfig = DEFAULT_COUNCIL_CONFIG
+  config: CouncilConfig = DEFAULT_COUNCIL_CONFIG,
+  history: ConversationTurn[] = []
 ): Promise<CouncilResult> {
   // Stage 1
-  const stage1 = await stage1Collect(userQuery, config);
+  const stage1 = await stage1Collect(userQuery, config, history);
 
   if (stage1.length === 0) {
     return {
@@ -189,7 +244,7 @@ export async function runFullCouncil(
     };
   }
 
-  // Stage 2
+  // Stage 2 (no history — ranking is context-free)
   const { rankings: stage2, metadata: stage2Metadata } = await stage2Rank(
     userQuery,
     stage1,
@@ -197,7 +252,7 @@ export async function runFullCouncil(
   );
 
   // Stage 3
-  const stage3 = await stage3Synthesize(userQuery, stage1, stage2, config);
+  const stage3 = await stage3Synthesize(userQuery, stage1, stage2, config, history);
 
   return { stage1, stage2, stage2Metadata, stage3 };
 }

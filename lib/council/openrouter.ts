@@ -8,6 +8,11 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 
+interface Message {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 /**
@@ -61,6 +66,62 @@ export async function queryModel(
     console.error(`[openrouter] Error querying ${model}:`, error);
     return null;
   }
+}
+
+/**
+ * Query a single model with a messages array (for multi-turn context).
+ */
+export async function queryModelWithMessages(
+  model: string,
+  messages: Message[],
+  timeoutMs: number = 120_000
+): Promise<QueryResult | null> {
+  const provider = getOpenRouterProvider();
+  const start = Date.now();
+
+  try {
+    const result = await generateText({
+      model: provider(model),
+      messages,
+      abortSignal: AbortSignal.timeout(timeoutMs),
+    });
+
+    return {
+      content: result.text,
+      responseTimeMs: Date.now() - start,
+    };
+  } catch (error) {
+    console.error(`[openrouter] Error querying ${model}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Query multiple models in parallel with a messages array.
+ */
+export async function queryModelsParallelWithMessages(
+  models: string[],
+  messages: Message[],
+  timeoutMs: number = 120_000
+): Promise<Map<string, QueryResult>> {
+  const results = await Promise.allSettled(
+    models.map((model) => queryModelWithMessages(model, messages, timeoutMs))
+  );
+
+  const map = new Map<string, QueryResult>();
+
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled" && result.value !== null) {
+      map.set(models[index], result.value);
+    } else if (result.status === "rejected") {
+      console.error(
+        `[openrouter] ${models[index]} rejected:`,
+        result.reason
+      );
+    }
+  });
+
+  return map;
 }
 
 /**

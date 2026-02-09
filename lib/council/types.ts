@@ -100,11 +100,21 @@ export interface SSEEvent<T = unknown> {
 }
 
 // ---------------------------------------------------------------------------
+// Conversation History (multi-turn)
+// ---------------------------------------------------------------------------
+
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+// ---------------------------------------------------------------------------
 // API Request / Response
 // ---------------------------------------------------------------------------
 
 export interface CouncilStreamRequest {
   question: string;
+  conversationId?: string;
   councilModels?: string[];
   chairmanModel?: string;
 }
