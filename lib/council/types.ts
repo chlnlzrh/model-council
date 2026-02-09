@@ -68,11 +68,13 @@ export interface CouncilConfig {
 
 export const DEFAULT_COUNCIL_CONFIG: CouncilConfig = {
   councilModels: [
-    "openai/gpt-4o",
-    "anthropic/claude-sonnet-4",
-    "google/gemini-2.5-flash",
+    "anthropic/claude-opus-4-6",
+    "openai/o3",
+    "google/gemini-2.5-pro",
+    "deepseek/deepseek-r1",
+    "perplexity/sonar-pro",
   ],
-  chairmanModel: "anthropic/claude-sonnet-4",
+  chairmanModel: "anthropic/claude-opus-4-6",
   timeoutMs: 120_000,
 };
 
