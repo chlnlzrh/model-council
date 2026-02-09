@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Model Council — UI Mockup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-tertiary: #f3f4f6;
+    --border: #e5e7eb;
+    --text: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --success: #059669;
+    --warning: #d97706;
+    --rank-1: #059669;
+    --rank-2: #2563eb;
+    --rank-3: #d97706;
+    --rank-4: #9ca3af;
+    --skeleton: #e5e7eb;
+    --skeleton-shine: #f3f4f6;
+  }
+
+  [data-theme="dark"] {
+    --bg: #09090b;
+    --bg-secondary: #18181b;
+    --bg-tertiary: #27272a;
+    --border: #3f3f46;
+    --text: #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent: #3b82f6;
+    --accent-light: #1e293b;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --rank-1: #34d399;
+    --rank-2: #60a5fa;
+    --rank-3: #fbbf24;
+    --rank-4: #71717a;
+    --skeleton: #3f3f46;
+    --skeleton-shine: #52525b;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Layout */
+  .app { display: flex; height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    border-right: 1px solid var(--border);
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sidebar-title { font-weight: 700; font-size: 12px; }
+  .new-btn {
+    padding: 4px 10px;
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .new-btn:hover { opacity: 0.85; }
+  .sidebar-nav {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .nav-item {
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s;
+  }
+  .nav-item:hover { background: var(--bg-tertiary); color: var(--text); }
+  .nav-item.active { background: var(--bg-tertiary); color: var(--text); font-weight: 500; }
+  .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+  .nav-item.active .nav-dot { background: var(--accent); }
+  .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-section {
+    padding: 6px 8px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 8px;
+  }
+  .sidebar-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .theme-toggle {
+    padding: 4px 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-family: inherit;
+  }
+  .theme-toggle:hover { color: var(--text); }
+
+  /* Main Content */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* Header */
+  .header {
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+  .header-title { font-weight: 600; }
+  .header-meta { color: var(--text-muted); font-size: 11px; }
+  .hamburger { display: none; background: none; border: none; cursor: pointer; color: var(--text); font-size: 18px; }
+
+  /* Messages Area */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* User Message */
+  .user-msg {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .user-bubble {
+    background: var(--text);
+    color: var(--bg);
+    padding: 8px 14px;
+    border-radius: 12px 12px 2px 12px;
+    max-width: 70%;
+    font-size: 12px;
+  }
+
+  /* Council Response */
+  .council-response {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  /* Stage Tabs */
+  .stage-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .stage-tab {
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .stage-tab:hover { color: var(--text-secondary); }
+  .stage-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .stage-tab .tab-status {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-left: 6px;
+  }
+  .tab-status.done { background: var(--success); }
+  .tab-status.loading { background: var(--warning); animation: pulse 1s infinite; }
+  .tab-status.pending { background: var(--text-muted); }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* Stage Content */
+  .stage-content { padding: 16px; }
+  .stage-panel { display: none; }
+  .stage-panel.active { display: block; }
+
+  /* Model Tabs (within Stage 1 and Stage 2) */
+  .model-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .model-tab {
+    padding: 4px 10px;
+    font-size: 11px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .model-tab:hover { color: var(--text); border-color: var(--text-muted); }
+  .model-tab.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .model-content { display: none; }
+  .model-content.active { display: block; }
+
+  /* Response Text */
+  .response-text {
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+  .response-meta {
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  /* Aggregate Rankings */
+  .rankings-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .rankings-title {
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .ranking-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+  }
+  .ranking-position {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .rank-1 { background: var(--rank-1); }
+  .rank-2 { background: var(--rank-2); }
+  .rank-3 { background: var(--rank-3); }
+  .rank-4 { background: var(--rank-4); }
+  .ranking-model { font-size: 11px; font-weight: 500; flex: 1; }
+  .ranking-bar-container { width: 120px; height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden; }
+  .ranking-bar { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+  .ranking-score { font-size: 10px; color: var(--text-muted); width: 60px; text-align: right; }
+
+  /* Stage 3 — Synthesis */
+  .synthesis {
+    padding: 16px;
+    background: var(--accent-light);
+    border-radius: 8px;
+    border-left: 3px solid var(--accent);
+  }
+  .synthesis-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .chairman-badge {
+    padding: 2px 8px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .synthesis-label { font-size: 11px; font-weight: 600; color: var(--text); }
+
+  /* Skeleton Loading */
+  .skeleton {
+    background: linear-gradient(90deg, var(--skeleton) 25%, var(--skeleton-shine) 50%, var(--skeleton) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .skeleton-line { height: 12px; margin-bottom: 8px; }
+  .skeleton-line:nth-child(1) { width: 90%; }
+  .skeleton-line:nth-child(2) { width: 75%; }
+  .skeleton-line:nth-child(3) { width: 85%; }
+  .skeleton-line:nth-child(4) { width: 60%; }
+  .skeleton-tab { width: 80px; height: 24px; border-radius: 12px; display: inline-block; margin-right: 4px; }
+
+  /* Chat Input */
+  .chat-input-area {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+  .chat-input-wrapper {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .chat-textarea {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 12px;
+    font-family: inherit;
+    resize: none;
+    background: var(--bg-secondary);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 40px;
+    max-height: 120px;
+  }
+  .chat-textarea:focus { outline: none; border-color: var(--accent); }
+  .chat-textarea::placeholder { color: var(--text-muted); }
+  .send-btn {
+    padding: 8px 16px;
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    height: 40px;
+  }
+  .send-btn:hover { opacity: 0.85; }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .input-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; text-align: center; }
+
+  /* View Switcher */
+  .view-switcher {
+    position: fixed;
+    bottom: 100px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 100;
+  }
+  .view-btn {
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 10px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .view-btn:hover { background: var(--bg-tertiary); color: var(--text); }
+  .view-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  /* Empty State */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-muted);
+    padding: 40px;
+  }
+  .empty-icon { font-size: 32px; opacity: 0.3; }
+  .empty-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+  .empty-text { font-size: 12px; text-align: center; max-width: 320px; line-height: 1.6; }
+
+  /* Mobile */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .sidebar.open { display: flex; position: fixed; z-index: 50; top: 0; left: 0; bottom: 0; width: 280px; box-shadow: 4px 0 24px rgba(0,0,0,0.15); }
+    .hamburger { display: block; }
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 40; }
+    .overlay.open { display: block; }
+    .model-tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+    .user-bubble { max-width: 85%; }
+  }
+</style>
+</head>
+<body>
+  <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Model Council</span>
+        <button class="new-btn" onclick="showView('empty')">+ New</button>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">Recent</div>
+        <div class="nav-item active" onclick="showView('completed')">
+          <span class="nav-dot"></span>
+          <span class="nav-label">Office chair seat height</span>
+        </div>
+        <div class="nav-item" onclick="showView('completed')">
+          <span class="nav-dot"></span>
+          <span class="nav-label">Quantum computing basics</span>
+        </div>
+        <div class="nav-item" onclick="showView('completed')">
+          <span class="nav-dot"></span>
+          <span class="nav-label">Best programming language</span>
+        </div>
+        <div class="nav-section">Navigation</div>
+        <div class="nav-item">
+          <span class="nav-dot"></span>
+          <span class="nav-label">Settings</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-dot"></span>
+          <span class="nav-label">Analytics</span>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <span style="color: var(--text-muted); font-size: 10px;">4 models active</span>
+        <button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="header">
+        <div>
+          <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
+          <span class="header-title" id="headerTitle">Office chair seat height</span>
+        </div>
+        <span class="header-meta">4 models &middot; Claude Opus 4.6 chairman</span>
+      </div>
+
+      <!-- View: Empty State -->
+      <div id="view-empty" style="display:none; flex:1; flex-direction:column;">
+        <div class="empty-state">
+          <div class="empty-icon">&#9878;</div>
+          <div class="empty-title">Ask the Council</div>
+          <div class="empty-text">Type a question below. Four AI models will respond independently, rank each other's answers, and a chairman will synthesize the best response.</div>
+        </div>
+        <div class="chat-input-area">
+          <div class="chat-input-wrapper">
+            <textarea class="chat-textarea" placeholder="Ask the council anything..." rows="1"></textarea>
+            <button class="send-btn" onclick="showView('loading')">Send</button>
+          </div>
+          <div class="input-hint">Enter to send &middot; Shift+Enter for new line</div>
+        </div>
+      </div>
+
+      <!-- View: Loading State -->
+      <div id="view-loading" style="display:none; flex:1; flex-direction:column;">
+        <div class="messages">
+          <div class="user-msg">
+            <div class="user-bubble">What is the best height of the seat of an office chair in inches?</div>
+          </div>
+          <div class="council-response">
+            <div class="stage-tabs">
+              <button class="stage-tab active">Responses <span class="tab-status loading"></span></button>
+              <button class="stage-tab">Rankings <span class="tab-status pending"></span></button>
+              <button class="stage-tab">Synthesis <span class="tab-status pending"></span></button>
+            </div>
+            <div class="stage-content">
+              <div class="model-tabs">
+                <div class="skeleton skeleton-tab"></div>
+                <div class="skeleton skeleton-tab"></div>
+                <div class="skeleton skeleton-tab"></div>
+                <div class="skeleton skeleton-tab"></div>
+              </div>
+              <div class="skeleton skeleton-line"></div>
+              <div class="skeleton skeleton-line"></div>
+              <div class="skeleton skeleton-line"></div>
+              <div class="skeleton skeleton-line"></div>
+              <div style="margin-top: 16px;">
+                <div class="skeleton skeleton-line" style="width: 50%;"></div>
+                <div class="skeleton skeleton-line" style="width: 70%;"></div>
+                <div class="skeleton skeleton-line" style="width: 40%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <div class="chat-input-wrapper">
+            <textarea class="chat-textarea" placeholder="Council is deliberating..." disabled rows="1"></textarea>
+            <button class="send-btn" disabled>Thinking...</button>
+          </div>
+          <div class="input-hint">Stage 1 of 3 &middot; Collecting responses...</div>
+        </div>
+      </div>
+
+      <!-- View: Completed Response -->
+      <div id="view-completed" style="display:flex; flex:1; flex-direction:column;">
+        <div class="messages" id="messagesArea">
+          <div class="user-msg">
+            <div class="user-bubble">What is the best height of the seat of an office chair in inches?</div>
+          </div>
+          <div class="council-response">
+            <div class="stage-tabs">
+              <button class="stage-tab active" onclick="switchStage(this, 'stage1')">Responses <span class="tab-status done"></span></button>
+              <button class="stage-tab" onclick="switchStage(this, 'stage2')">Rankings <span class="tab-status done"></span></button>
+              <button class="stage-tab" onclick="switchStage(this, 'stage3')">Synthesis <span class="tab-status done"></span></button>
+            </div>
+            <div class="stage-content">
+
+              <!-- Stage 1: Individual Responses -->
+              <div class="stage-panel active" id="stage1">
+                <div class="model-tabs">
+                  <button class="model-tab active" onclick="switchModel(this, 'model-opus')">Claude Opus 4.6</button>
+                  <button class="model-tab" onclick="switchModel(this, 'model-o3')">OpenAI o3</button>
+                  <button class="model-tab" onclick="switchModel(this, 'model-gemini')">Gemini 2.5 Pro</button>
+                  <button class="model-tab" onclick="switchModel(this, 'model-pplx')">Perplexity Sonar Pro</button>
+                </div>
+                <div class="model-content active" id="model-opus">
+                  <div class="response-text">The best seat height for an office chair depends on the individual, but general guidelines are:
+
+<b>Standard recommended range:</b> 16–20.5 inches from the floor
+<b>Most common ideal height:</b> Around 17–19 inches for the average person
+
+The key principle is that your feet should be flat on the floor (or on a footrest), with your thighs roughly parallel to the ground and your knees bent at about a 90-degree angle.
+
+<b>Height-based guidelines:</b>
+• Shorter individuals (5'0"–5'4"): ~15–17 inches
+• Average height (5'5"–5'10"): ~17–19 inches
+• Taller individuals (5'11"+): ~19–21 inches
+
+An adjustable chair is ideal so you can fine-tune the height to your body and desk setup.</div>
+                  <div class="response-meta">Claude Opus 4.6 &middot; 10.9s</div>
+                </div>
+                <div class="model-content" id="model-o3">
+                  <div class="response-text">There isn't one single "perfect" seat-height number that suits every person, because the correct height depends on the user's leg length and the shoes being worn.
+
+The ergonomic goal is:
+• Feet flat on the floor (or on a footrest)
+• Knees at, or very slightly below, hip level (~90° bend)
+• Thighs roughly horizontal
+
+<b>Popliteal height</b> for the 5th–95th percentile adult: about 15–22 in.
+After adjusting for shoes (~1 in) and seat compression (~½ in):
+
+<b>≈ 16–21 inches</b> from floor to seat cushion.
+
+If you need one figure for a non-adjustable chair: <b>18 inches</b> is the usual compromise.</div>
+                  <div class="response-meta">OpenAI o3 &middot; 6.8s</div>
+                </div>
+                <div class="model-content" id="model-gemini">
+                  <div class="response-text">There is no single "best" height in inches for everyone.
+
+<b>The Golden Rule for Office Chair Height:</b>
+
+1. Your feet resting flat on the floor
+2. Your knees bent at a 90 to 100-degree angle
+3. A small gap of 2-3 fingers' width between the front edge of the seat and the back of your knees
+
+<b>Step 1:</b> Set your chair height for your legs — seat at kneecap level
+<b>Step 2:</b> Adjust your workspace to your arm height — elbows at 90°
+
+Most standard office chairs have a range of about <b>16 to 21 inches</b>.
+
+If your desk is too high, use a footrest or keyboard tray to compensate.</div>
+                  <div class="response-meta">Gemini 2.5 Pro &middot; 21.0s</div>
+                </div>
+                <div class="model-content" id="model-pplx">
+                  <div class="response-text">Standard adjustable ranges are <b>16-21 inches</b>, accommodating most adults.
+
+<b>Height-Based Recommendations:</b>
+
+| Your Height | Ideal Seat Height |
+| 4'11"       | 15.9"             |
+| 5'0"-5'3"   | 16.2-17"          |
+| 5'4"-5'7"   | 17.2-18"          |
+| 5'8"-5'11"  | 18.3-19.1"        |
+| 6'0"-6'3"   | 19.4-20.2"        |
+| 6'4"+       | 20.5-22+"         |
+
+Quick rule: Subtract ~10 inches from your desk height for the seat, then fine-tune for knee position.</div>
+                  <div class="response-meta">Perplexity Sonar Pro &middot; 5.0s</div>
+                </div>
+              </div>
+
+              <!-- Stage 2: Rankings -->
+              <div class="stage-panel" id="stage2">
+                <div class="model-tabs">
+                  <button class="model-tab active" onclick="switchRanker(this, 'ranker-opus')">Claude Opus 4.6</button>
+                  <button class="model-tab" onclick="switchRanker(this, 'ranker-o3')">OpenAI o3</button>
+                  <button class="model-tab" onclick="switchRanker(this, 'ranker-gemini')">Gemini 2.5 Pro</button>
+                  <button class="model-tab" onclick="switchRanker(this, 'ranker-pplx')">Perplexity Sonar Pro</button>
+                </div>
+                <div class="model-content active" id="ranker-opus">
+                  <div class="response-text"><b>Claude Opus 4.6's Evaluation:</b>
+
+<b>Gemini 2.5 Pro</b> — Comprehensive step-by-step guide with troubleshooting table. Addresses desk-height relationship. Best practical guidance.
+
+<b>OpenAI o3</b> — Technically precise with popliteal height data. Clear single-number answer (18 inches). Well-grounded.
+
+<b>Claude Opus 4.6</b> — Clear and accessible with height-based breakdowns but lacks depth on troubleshooting.
+
+<b>Perplexity Sonar Pro</b> — Detailed table but misleading precision. Orphaned citations.
+
+<b>FINAL RANKING:</b>
+1. Gemini 2.5 Pro
+2. OpenAI o3
+3. Claude Opus 4.6
+4. Perplexity Sonar Pro</div>
+                </div>
+                <div class="model-content" id="ranker-o3">
+                  <div class="response-text"><b>OpenAI o3's Evaluation:</b>
+
+<b>OpenAI o3</b> — Shows the math (popliteal height). Concise yet authoritative.
+
+<b>Gemini 2.5 Pro</b> — Thorough step-by-step. Verbose for the question asked.
+
+<b>Perplexity Sonar Pro</b> — Height-to-seat table. Fake citations hurt credibility.
+
+<b>Claude Opus 4.6</b> — Quick and practical but internally inconsistent range.
+
+<b>FINAL RANKING:</b>
+1. OpenAI o3
+2. Gemini 2.5 Pro
+3. Perplexity Sonar Pro
+4. Claude Opus 4.6</div>
+                </div>
+                <div class="model-content" id="ranker-gemini">
+                  <div class="response-text"><b>Gemini 2.5 Pro's Evaluation:</b>
+
+<b>Gemini 2.5 Pro</b> — Outstanding. Correct procedure: set chair for legs, then adjust desk. Troubleshooting table is exceptional.
+
+<b>OpenAI o3</b> — High-quality technical explanation with popliteal height.
+
+<b>Claude Opus 4.6</b> — Concise but ignores desk height relationship.
+
+<b>Perplexity Sonar Pro</b> — Jumble of facts without coherent guidance.
+
+<b>FINAL RANKING:</b>
+1. Gemini 2.5 Pro
+2. OpenAI o3
+3. Claude Opus 4.6
+4. Perplexity Sonar Pro</div>
+                </div>
+                <div class="model-content" id="ranker-pplx">
+                  <div class="response-text"><b>Perplexity Sonar Pro's Evaluation:</b>
+
+<b>Perplexity Sonar Pro</b> — Cites sources. Precise height-based table. Desk height quick rule.
+
+<b>Gemini 2.5 Pro</b> — Actionable with ergonomic rules and step-by-step. Verbose.
+
+<b>Claude Opus 4.6</b> — Clear range and kneecap rule. Lacks desk integration.
+
+<b>OpenAI o3</b> — Accurate but limited advice. Less user-friendly.
+
+<b>FINAL RANKING:</b>
+1. Perplexity Sonar Pro
+2. Gemini 2.5 Pro
+3. Claude Opus 4.6
+4. OpenAI o3</div>
+                </div>
+
+                <!-- Aggregate Rankings -->
+                <div class="rankings-section">
+                  <div class="rankings-title">Aggregate Rankings</div>
+                  <div class="ranking-row">
+                    <div class="ranking-position rank-1">1</div>
+                    <div class="ranking-model">Gemini 2.5 Pro</div>
+                    <div class="ranking-bar-container"><div class="ranking-bar rank-1" style="width:95%; background:var(--rank-1);"></div></div>
+                    <div class="ranking-score">Avg: 1.50</div>
+                  </div>
+                  <div class="ranking-row">
+                    <div class="ranking-position rank-2">2</div>
+                    <div class="ranking-model">OpenAI o3</div>
+                    <div class="ranking-bar-container"><div class="ranking-bar rank-2" style="width:72%; background:var(--rank-2);"></div></div>
+                    <div class="ranking-score">Avg: 2.25</div>
+                  </div>
+                  <div class="ranking-row">
+                    <div class="ranking-position rank-3">3</div>
+                    <div class="ranking-model">Perplexity Sonar Pro</div>
+                    <div class="ranking-bar-container"><div class="ranking-bar rank-3" style="width:50%; background:var(--rank-3);"></div></div>
+                    <div class="ranking-score">Avg: 3.00</div>
+                  </div>
+                  <div class="ranking-row">
+                    <div class="ranking-position rank-4">4</div>
+                    <div class="ranking-model">Claude Opus 4.6</div>
+                    <div class="ranking-bar-container"><div class="ranking-bar rank-4" style="width:40%; background:var(--rank-4);"></div></div>
+                    <div class="ranking-score">Avg: 3.25</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Stage 3: Synthesis -->
+              <div class="stage-panel" id="stage3">
+                <div class="synthesis">
+                  <div class="synthesis-header">
+                    <span class="chairman-badge">Chairman</span>
+                    <span class="synthesis-label">Claude Opus 4.6 &middot; Final Synthesis</span>
+                  </div>
+                  <div class="response-text"><b>The Best Office Chair Seat Height</b>
+
+There is no single "best" seat height that works for everyone — it depends on your body proportions, shoes, and desk setup. However, here are the key numbers:
+
+<b>The Standard Range:</b> 16 to 21 inches from the floor to the top of the seat cushion accommodates the vast majority of adults (roughly 5'0" to 6'2").
+
+<b>Single number answer:</b> If you must pick one number for a non-adjustable chair, <b>18 inches</b> is the most widely accepted compromise for an average adult.
+
+<b>How to find your ideal height:</b>
+1. Sit with your feet flat on the floor
+2. Adjust until your knees are at approximately 90 degrees
+3. Let your arms hang naturally, bend elbows to 90° — that's where your keyboard should be
+4. If your desk is too high, use a footrest
+
+<b>Bottom line:</b> Don't chase a specific number — adjust your chair so your feet are flat, knees at roughly 90°, and forearms parallel to the floor when typing. Start at 18 inches and fine-tune from there.</div>
+                  <div class="response-meta">Claude Opus 4.6 &middot; 13.9s &middot; Synthesized from 4 models</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <div class="chat-input-wrapper">
+            <textarea class="chat-textarea" placeholder="Ask a follow-up question..." rows="1"></textarea>
+            <button class="send-btn">Send</button>
+          </div>
+          <div class="input-hint">Enter to send &middot; Shift+Enter for new line</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Switcher -->
+  <div class="view-switcher">
+    <button class="view-btn" onclick="showView('empty')">Empty</button>
+    <button class="view-btn" onclick="showView('loading')">Loading</button>
+    <button class="view-btn active" onclick="showView('completed')">Complete</button>
+  </div>
+
+<script>
+  // Theme
+  function toggleTheme() {
+    const html = document.documentElement;
+    html.dataset.theme = html.dataset.theme === 'dark' ? '' : 'dark';
+  }
+
+  // Sidebar
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('overlay').classList.toggle('open');
+  }
+
+  // View Switcher
+  function showView(view) {
+    ['empty', 'loading', 'completed'].forEach(v => {
+      document.getElementById('view-' + v).style.display = v === view ? 'flex' : 'none';
+    });
+    document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    if (view === 'empty') {
+      document.getElementById('headerTitle').textContent = 'New Council';
+    } else {
+      document.getElementById('headerTitle').textContent = 'Office chair seat height';
+    }
+  }
+
+  // Stage Tabs
+  function switchStage(tab, stageId) {
+    tab.closest('.council-response').querySelectorAll('.stage-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    tab.closest('.council-response').querySelectorAll('.stage-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(stageId).classList.add('active');
+  }
+
+  // Model Tabs (Stage 1)
+  function switchModel(tab, modelId) {
+    tab.closest('.stage-panel').querySelectorAll('.model-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    tab.closest('.stage-panel').querySelectorAll('.model-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(modelId).classList.add('active');
+  }
+
+  // Ranker Tabs (Stage 2)
+  function switchRanker(tab, rankerId) {
+    const section = tab.closest('.stage-panel');
+    section.querySelectorAll('.model-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    section.querySelectorAll('.model-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(rankerId).classList.add('active');
+  }
+</script>
+</body>
+</html>
