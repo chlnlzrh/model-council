@@ -127,91 +127,144 @@ Req: REQ-NFR-004 (partial — start building test foundation).
 - Metadata (title, description)
 - `globals.css` with Tailwind imports + CSS variables
 
-### 2.2 Dashboard Layout (`app/(dashboard)/layout.tsx`)
-
-- Sidebar component (conversation list + nav links)
-- Main content area
-- Mobile hamburger navigation
-- Theme toggle in header
-
-### 2.3 Shadcn Components
+### 2.2 Shadcn Components
 
 Install via CLI:
 
 ```bash
-npx shadcn@latest add button card tabs badge skeleton toast dialog select input textarea separator sheet dropdown-menu avatar
+npx shadcn@latest add button card tabs badge skeleton toast separator sheet textarea scroll-area
 ```
 
-### 2.4 Council View (`app/(dashboard)/council/[id]/page.tsx`)
+Also install:
+```bash
+npm i react-markdown
+```
 
-- Message list showing user messages + council responses
-- Each council response has 3-tab view (Stage 1 | Stage 2 | Stage 3)
-- Chat input fixed at bottom
+### 2.3 Model Colors Utility (`lib/council/model-colors.ts`)
 
-### 2.5 Stage Panels
+Consistent HSL-based colors for model identity across all UI. Req: REQ-UI-017.
 
-**`components/council/stage1-panel.tsx`** — Req: REQ-CURR-011
-- Shadcn Tabs per model
-- ReactMarkdown rendering
-- Skeleton loader during stage1_start
+- `getModelColor(index)` → returns HSL color string
+- `getModelColorClass(index)` → returns Tailwind-compatible class
+- Color palette: blue, green, orange, purple, gray (fallback for 5+)
 
-**`components/council/stage2-panel.tsx`** — Reqs: REQ-CURR-012, REQ-CURR-014
-- Shadcn Tabs per model evaluation
-- De-anonymization (replace "Response X" → bold model name)
-- Parsed ranking ordered list
-- Aggregate rankings section (position + avg rank + vote count)
+### 2.4 SSE Client Hook (`hooks/use-council-stream.ts`)
 
-**`components/council/stage3-panel.tsx`** — Req: REQ-CURR-006
-- Chairman model badge
-- Full synthesis with markdown rendering
-- Visually distinct (accent border/background)
+Port of `App.jsx:92-172` state machine. Reqs: REQ-CURR-010, REQ-UI-011, REQ-UI-012.
 
-### 2.6 SSE Client Hook (`hooks/use-council-stream.ts`)
-
-Port of `App.jsx:92-172` state machine. Req: REQ-CURR-010.
-
-- `useCouncilStream()` hook returning `{ sendMessage, stages, isLoading, error }`
+- `useCouncilStream()` hook returning `{ sendMessage, stage1, stage2, stage3, title, currentStage, isLoading, error, elapsedMs }`
 - Fetch with `ReadableStream` reader
 - Parse SSE lines → dispatch to React state
-- Per-stage loading flags
+- Per-stage loading flags + elapsed time counter (REQ-UI-018)
+- Individual model responses tracked as they arrive
 
-### 2.7 Chat Input (`components/council/chat-input.tsx`)
+### 2.5 Dashboard Layout (`app/(dashboard)/layout.tsx`)
 
-- Multiline textarea (auto-resize)
-- Enter to send, Shift+Enter for newline
-- Disabled during pipeline execution
-- Loading indicator
+- Sidebar component (conversation list + nav links)
+- Main content area with max-width centering
+- Mobile hamburger navigation with overlay
+- Theme toggle in header
 
-### 2.8 Sidebar (`components/layout/sidebar.tsx`)
+### 2.6 Sidebar (`components/layout/sidebar.tsx`)
 
 - Conversation list (from client state initially)
 - "New Council" button
 - Nav links: Council, Settings, Analytics
-- Collapsible on desktop, slide panel on mobile
+- Collapsible on desktop, Shadcn Sheet slide panel on mobile
 - Active conversation highlighted
+- Model count in footer
 
-### 2.9 Dark Mode + Theme
+### 2.7 Council Page (`app/(dashboard)/council/page.tsx`)
 
-- `next-themes` ThemeProvider
+- Empty state: "Ask the Council" with description
+- New council form: chat input at bottom
+- On submit: create new conversation in client state, navigate to council view
+
+### 2.8 Council View (`app/(dashboard)/council/[id]/page.tsx`)
+
+- Message list showing user messages + council responses
+- Each council response has 3-tab stage view with status dots
+- Chat input fixed at bottom
+- Auto-scroll to latest message
+
+### 2.9 Stage 1 Panel (`components/council/stage1-panel.tsx`)
+
+Reqs: REQ-CURR-011, REQ-UI-012, REQ-UI-014, REQ-UI-015.
+
+- Model pill tabs with assigned colors (REQ-UI-017)
+- Response time badge on each tab (e.g., "6.8s") — fastest highlighted green
+- ReactMarkdown rendering for response content
+- Collapsible responses: >300 chars shows "Show more" with gradient fade (REQ-UI-015)
+- Copy button on hover (REQ-UI-016)
+- Skeleton loader during stage1_start, individual skeletons per model
+
+### 2.10 Stage 2 Panel (`components/council/stage2-panel.tsx`)
+
+Reqs: REQ-CURR-012, REQ-CURR-014, REQ-UI-013, REQ-UI-020.
+
+- **De-anonymization label map** at top: colored pills showing "Response A → Claude Opus 4.6" (REQ-UI-013)
+- Model tabs for individual evaluations
+- Within evaluation text, highlight "Response X" with model's assigned color
+- Parsed ranking displayed as ordered list
+- **Aggregate rankings section**:
+  - Position badge (1st, 2nd, 3rd, 4th) with rank colors
+  - Model name
+  - Bar chart: width = `(numModels - avgRank + 1) / numModels * 100%` (REQ-UI-020)
+  - Average rank score
+
+### 2.11 Stage 3 Panel (`components/council/stage3-panel.tsx`)
+
+Reqs: REQ-CURR-006, REQ-UI-016.
+
+- Chairman badge with accent color
+- Full synthesis with ReactMarkdown — always expanded (not collapsible)
+- Visually distinct: accent left border + light accent background
+- Copy button (REQ-UI-016)
+- Response time + "Synthesized from N models" meta
+
+### 2.12 Chat Input (`components/council/chat-input.tsx`)
+
+Reqs: REQ-CURR-018, REQ-UI-018.
+
+- Multiline textarea (auto-resize, max 5 rows)
+- Enter to send, Shift+Enter for newline
+- Disabled during pipeline execution with stage progress text
+- Elapsed time indicator: "Stage 1 of 3 · Collecting responses... (8s)" (REQ-UI-018)
+- Send button with loading state
+
+### 2.13 Dark Mode + Theme
+
+- `next-themes` ThemeProvider with system detection
 - CSS variables for all colors (Shadcn default theme)
-- Toggle component in header
-- `prefers-color-scheme` system detection
+- Toggle component in sidebar footer
+- `prefers-color-scheme` respected
 
-### 2.10 Responsive Layout
+### 2.14 Responsive Layout
+
+Reqs: REQ-UI-004, REQ-UI-019.
 
 - Mobile-first breakpoints: 320/375/768/1024/1440px
-- Sidebar: full on desktop, hamburger on mobile
+- Sidebar: full on desktop (260px), Sheet slide-in on mobile
+- Model pill tabs: horizontal scroll with gradient fade edges on mobile (REQ-UI-019)
 - Stage tabs: horizontal scroll on narrow screens
 - Touch targets: 44px minimum
+- Chat input: full width, centered with max-width matching messages
 
 ### Phase 2 Verification
 
 - [ ] Full UI renders at all 5 breakpoints
 - [ ] Dark mode toggles correctly
 - [ ] SSE streaming updates all 3 stage panels progressively
-- [ ] Loading skeletons appear during each stage
+- [ ] Loading skeletons appear during each stage with elapsed time
+- [ ] Individual model responses appear as they arrive
+- [ ] De-anonymization label map displays correctly in Stage 2
+- [ ] Aggregate ranking bars use correct relative scale
+- [ ] Long responses collapse with "Show more"
+- [ ] Copy button works on synthesis and individual responses
+- [ ] Model colors are consistent across all stages
 - [ ] Keyboard navigation works (Tab, Enter, Escape)
 - [ ] Sidebar collapses/expands on mobile
+- [ ] Model pill tabs scroll horizontally with fade on mobile
 
 ---
 

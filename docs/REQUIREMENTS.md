@@ -131,6 +131,16 @@ These exist in the Karpathy prototype and must be reimplemented in Model Council
 | REQ-UI-008 | Skeleton loaders during data fetch | GAP-6 | P1 |
 | REQ-UI-009 | Toast notifications for errors and confirmations | GAP-12 | P1 |
 | REQ-UI-010 | Inter font, `text-xs` baseline typography | GAP-6 | P2 |
+| REQ-UI-011 | **Progressive stage rendering**: Stage 1 content replaces skeletons while Stage 2 loads; each stage streams independently | Mockup review | P1 |
+| REQ-UI-012 | **Per-model streaming**: individual model responses appear as they arrive, not all at once | Mockup review | P1 |
+| REQ-UI-013 | **De-anonymization reveal**: Stage 2 shows "Response A → Model Name" mapping visually | Mockup review | P1 |
+| REQ-UI-014 | **Response time comparison**: visual indicator showing relative speed of each model | Mockup review | P2 |
+| REQ-UI-015 | **Collapsible responses**: long model responses can be collapsed/expanded, with "Show more" | Mockup review | P1 |
+| REQ-UI-016 | **Copy button**: one-click copy on chairman synthesis (and individual responses) | Mockup review | P1 |
+| REQ-UI-017 | **Model identity colors**: each model gets a consistent color across all stages for quick recognition | Mockup review | P2 |
+| REQ-UI-018 | **Elapsed time indicator**: show "Stage 1: 8s elapsed..." during loading | Mockup review | P1 |
+| REQ-UI-019 | **Horizontal scroll with fade**: model pill tabs scroll horizontally on mobile with gradient fade edges | Mockup review | P1 |
+| REQ-UI-020 | **Aggregate ranking scale**: ranking bars use actual relative scale (not arbitrary widths) | Mockup review | P1 |
 
 ### Non-Functional (REQ-NFR)
 
@@ -152,28 +162,28 @@ Maps every requirement to its gap source, design section, implementation phase, 
 
 | Requirement | Gap | Design Section | Phase | Status |
 |-------------|-----|---------------|-------|--------|
-| REQ-CURR-001 | GAP-2 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-CURR-002 | GAP-3 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-CURR-003 | GAP-2 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-CURR-004 | GAP-2 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-CURR-005 | GAP-2 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-CURR-006 | GAP-2 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-CURR-007 | GAP-2 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-CURR-008 | GAP-12 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-CURR-009 | GAP-2 | DS-4 (Streaming) | 1 | Planned |
+| REQ-CURR-001 | GAP-2 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-CURR-002 | GAP-3 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-CURR-003 | GAP-2 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-CURR-004 | GAP-2 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-CURR-005 | GAP-2 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-CURR-006 | GAP-2 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-CURR-007 | GAP-2 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-CURR-008 | GAP-12 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-CURR-009 | GAP-2 | DS-4 (Streaming) | 1 | **Done** |
 | REQ-CURR-010 | GAP-2 | DS-4 (Streaming) | 2 | Planned |
 | REQ-CURR-011 | GAP-6 | DS-5 (UI) | 2 | Planned |
 | REQ-CURR-012 | GAP-6 | DS-5 (UI) | 2 | Planned |
 | REQ-CURR-013 | — | DS-5 (UI) | 2 | Planned |
 | REQ-CURR-014 | GAP-6 | DS-5 (UI) | 2 | Planned |
 | REQ-CURR-015 | GAP-4 | DS-6 (Data) | 3 | Planned |
-| REQ-CURR-016 | — | DS-3 (Pipeline) | 1 | Planned |
+| REQ-CURR-016 | — | DS-3 (Pipeline) | 1 | **Done** |
 | REQ-CURR-017 | — | DS-5 (UI) | 2 | Planned |
 | REQ-CURR-018 | — | DS-5 (UI) | 2 | Planned |
-| REQ-FW-001 | GAP-1 | DS-1 (Architecture) | 1 | Planned |
-| REQ-FW-002 | GAP-1 | DS-1 (Architecture) | 1 | Planned |
+| REQ-FW-001 | GAP-1 | DS-1 (Architecture) | 1 | **Done** |
+| REQ-FW-002 | GAP-1 | DS-1 (Architecture) | 1 | **Done** |
 | REQ-FW-003 | GAP-1 | DS-1 (Architecture) | 5 | Planned |
-| REQ-FW-004 | GAP-1 | DS-2 (Directory) | 1 | Planned |
+| REQ-FW-004 | GAP-1 | DS-2 (Directory) | 1 | **Done** |
 | REQ-FW-005 | GAP-2 | DS-3 (Pipeline) | 3 | Planned |
 | REQ-AUTH-001 | GAP-5 | DS-7 (Auth) | 3 | Planned |
 | REQ-AUTH-002 | GAP-5 | DS-7 (Auth) | 3 | Planned |
@@ -188,11 +198,11 @@ Maps every requirement to its gap source, design section, implementation phase, 
 | REQ-MODEL-004 | GAP-8 | DS-8 (Models) | 4 | Planned |
 | REQ-MODEL-005 | GAP-8 | DS-8 (Models) | 4 | Planned |
 | REQ-MODEL-006 | GAP-8 | DS-8 (Models) | 4 | Planned |
-| REQ-SDK-001 | GAP-3 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-SDK-002 | GAP-3 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-SDK-003 | GAP-3 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-SDK-004 | GAP-3 | DS-3 (Pipeline) | 1 | Planned |
-| REQ-SDK-005 | GAP-3 | DS-3 (Pipeline) | 1 | Planned |
+| REQ-SDK-001 | GAP-3 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-SDK-002 | GAP-3 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-SDK-003 | GAP-3 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-SDK-004 | GAP-3 | DS-3 (Pipeline) | 1 | **Done** |
+| REQ-SDK-005 | GAP-3 | DS-3 (Pipeline) | 1 | **Done** |
 | REQ-SDK-006 | GAP-3 | DS-9 (Analytics) | 4 | Planned |
 | REQ-MT-001 | GAP-9 | DS-5 (UI) | 4 | Planned |
 | REQ-MT-002 | GAP-9 | DS-3 (Pipeline) | 4 | Planned |
@@ -216,11 +226,21 @@ Maps every requirement to its gap source, design section, implementation phase, 
 | REQ-UI-008 | GAP-6 | DS-5 (UI) | 2 | Planned |
 | REQ-UI-009 | GAP-12 | DS-5 (UI) | 2 | Planned |
 | REQ-UI-010 | GAP-6 | DS-5 (UI) | 2 | Planned |
+| REQ-UI-011 | Mockup | DS-5 (UI) | 2 | Planned |
+| REQ-UI-012 | Mockup | DS-5 (UI) | 2 | Planned |
+| REQ-UI-013 | Mockup | DS-5 (UI) | 2 | Planned |
+| REQ-UI-014 | Mockup | DS-5 (UI) | 2 | Planned |
+| REQ-UI-015 | Mockup | DS-5 (UI) | 2 | Planned |
+| REQ-UI-016 | Mockup | DS-5 (UI) | 2 | Planned |
+| REQ-UI-017 | Mockup | DS-5 (UI) | 2 | Planned |
+| REQ-UI-018 | Mockup | DS-5 (UI) | 2 | Planned |
+| REQ-UI-019 | Mockup | DS-5 (UI) | 2 | Planned |
+| REQ-UI-020 | Mockup | DS-5 (UI) | 2 | Planned |
 | REQ-NFR-001 | — | DS-11 (Perf) | 5 | Planned |
 | REQ-NFR-002 | — | DS-11 (Perf) | 5 | Planned |
 | REQ-NFR-003 | — | DS-11 (Perf) | 5 | Planned |
 | REQ-NFR-004 | GAP-10 | DS-12 (Testing) | 5 | Planned |
-| REQ-NFR-005 | — | DS-1 (Architecture) | 1 | Planned |
+| REQ-NFR-005 | — | DS-1 (Architecture) | 1 | **Done** |
 | REQ-NFR-006 | — | DS-11 (Perf) | 5 | Planned |
 | REQ-NFR-007 | — | DS-11 (Perf) | 5 | Planned |
 

@@ -576,6 +576,108 @@ Every interactive component must implement all 6 states:
 
 ---
 
+## DS-5.2: Mockup-Driven UI Enhancements
+
+Based on HTML mockup review (2026-02-09), these refinements address gaps discovered during visual prototyping.
+
+### Progressive Stage Rendering (REQ-UI-011, REQ-UI-012)
+
+The SSE pipeline delivers stages sequentially. The UI must reflect this:
+
+```
+Stage 1 loading:  [skeleton] [skeleton] [skeleton]
+Stage 1 partial:  [Model A ✓] [Model B ✓] [skeleton]  ← models appear as they arrive
+Stage 1 done:     [Model A] [Model B] [Model C] [Model D]
+Stage 2 loading:  Stage 1 content stays visible, Stage 2 tab shows spinner
+Stage 2 done:     Rankings visible, Stage 3 tab shows spinner
+Stage 3 done:     All three tabs fully populated
+```
+
+- Each model response renders independently as it arrives from the SSE stream
+- Completed stages remain visible and interactive while later stages load
+- Stage tabs show status dots: green (done), yellow pulsing (loading), gray (pending)
+
+### De-anonymization Reveal (REQ-UI-013)
+
+Stage 2 evaluations reference anonymous labels ("Response A"). The UI provides a visual mapping:
+
+```
+Label Map (shown at top of Stage 2):
+  Response A → Claude Opus 4.6
+  Response B → OpenAI o3
+  Response C → Gemini 2.5 Pro
+  Response D → Perplexity Sonar Pro
+```
+
+- Shown as colored pills/badges at the top of the Stage 2 panel
+- Within evaluation text, "Response X" is highlighted with the model's assigned color
+- Hover on "Response A" shows the model name in a tooltip
+
+### Collapsible Responses (REQ-UI-015)
+
+Long model responses (>300 characters) default to collapsed with "Show more" toggle:
+
+- First ~4 lines visible with gradient fade
+- Click "Show more" to expand; "Show less" to collapse
+- Synthesis (Stage 3) is always expanded by default
+
+### Copy Button (REQ-UI-016)
+
+- Floating copy icon on hover for synthesis and individual responses
+- Click copies plain text (stripped markdown)
+- Brief "Copied!" toast confirmation
+
+### Model Identity Colors (REQ-UI-017)
+
+Each model gets a consistent HSL-based color:
+
+| Model Index | Color | Usage |
+|-------------|-------|-------|
+| Model 0 | Blue (`hsl(220, 70%, 55%)`) | Tab pill, ranking dot, label highlight |
+| Model 1 | Green (`hsl(160, 70%, 40%)`) | Same |
+| Model 2 | Orange (`hsl(30, 85%, 55%)`) | Same |
+| Model 3 | Purple (`hsl(280, 60%, 55%)`) | Same |
+| Model 4+ | Gray (`hsl(0, 0%, 55%)`) | Fallback |
+
+Colors apply to: model tab pills, ranking position badges, de-anonymization labels, response time bars.
+
+### Elapsed Time Indicator (REQ-UI-018)
+
+During pipeline execution, the chat input area shows:
+
+```
+Stage 1 of 3 · Collecting responses... (8s)
+Stage 2 of 3 · Ranking responses... (12s)
+Stage 3 of 3 · Synthesizing... (5s)
+```
+
+Timer increments every second. Resets per stage.
+
+### Response Time Comparison (REQ-UI-014)
+
+Stage 1 model tabs show response time as a subtle badge:
+
+```
+[Claude Opus 4.6  10.9s] [OpenAI o3  6.8s] [Gemini 2.5 Pro  21.0s]
+```
+
+Fastest model gets a subtle highlight (e.g., green text on the time).
+
+### Aggregate Ranking Scale (REQ-UI-020)
+
+Ranking bars use relative scale where:
+- Bar width = `(numModels - avgRank + 1) / numModels * 100%`
+- Ensures #1 ranked is always full width, last place is minimal
+
+### Mobile Scroll Affordance (REQ-UI-019)
+
+Model pill tabs on mobile:
+- Horizontal scroll container with `overflow-x: auto`
+- Left/right gradient fade (16px) indicating more content
+- Fade disappears when scrolled to the respective edge
+
+---
+
 ## DS-6: Database Schema
 
 ### Entity-Relationship Diagram
