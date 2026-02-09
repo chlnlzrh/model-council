@@ -8,10 +8,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Current Phase** | Pre-Phase 1 (Documentation Complete) |
-| **Current Task** | Project initialization pending |
-| **Overall Completion** | 5% (docs done, no application code) |
+| **Current Phase** | Phase 1 Complete — Ready for Phase 2 |
+| **Current Task** | Phase 2: UI (Shadcn, Dark Mode, Responsive) |
+| **Overall Completion** | 20% (core pipeline built, tested, deployed) |
 | **Last Updated** | 2026-02-09 |
+| **Production URL** | https://model-council-pink.vercel.app |
 
 ---
 
@@ -20,11 +21,31 @@
 | Phase | Status | Completion |
 |-------|--------|-----------|
 | Docs | **COMPLETE** | 100% |
-| Phase 1: Skeleton + Core Pipeline | Not Started | 0% |
+| Phase 1: Skeleton + Core Pipeline | **COMPLETE** | 100% |
 | Phase 2: UI (Shadcn, Dark Mode, Responsive) | Not Started | 0% |
 | Phase 3: Database + Auth | Not Started | 0% |
 | Phase 4: New Features | Not Started | 0% |
 | Phase 5: Polish + Testing | Not Started | 0% |
+
+---
+
+## Phase 1 Summary
+
+| Metric | Value |
+|--------|-------|
+| Tests | 42 passing (18 ranking-parser, 11 prompts, 13 orchestrator) |
+| Build | Zero TypeScript errors in strict mode |
+| Deployment | Live on Vercel with OpenRouter API key configured |
+| Pipeline | Tested end-to-end with real models |
+
+### Default Council (4 models)
+
+| Role | Model |
+|------|-------|
+| Council + Chairman | `anthropic/claude-opus-4-6` |
+| Council | `openai/o3` |
+| Council | `google/gemini-2.5-pro` |
+| Council | `perplexity/sonar-pro` |
 
 ---
 
@@ -41,32 +62,35 @@
 | `docs/IMPLEMENTATION.md` | Done |
 | `docs/STATUS.md` | Done |
 
-### Phase 1 Files
+### Phase 1 Files (Complete)
 
 | File | Status |
 |------|--------|
-| `package.json` | Not Started |
-| `tsconfig.json` | Not Started |
-| `next.config.ts` | Not Started |
-| `tailwind.config.ts` | Not Started |
-| `components.json` | Not Started |
-| `.env.example` | Not Started |
-| `.gitignore` | Not Started |
-| `lib/council/types.ts` | Not Started |
-| `lib/council/openrouter.ts` | Not Started |
-| `lib/council/prompts.ts` | Not Started |
-| `lib/council/ranking-parser.ts` | Not Started |
-| `lib/council/orchestrator.ts` | Not Started |
-| `app/api/council/stream/route.ts` | Not Started |
-| `__tests__/ranking-parser.test.ts` | Not Started |
-| `__tests__/orchestrator.test.ts` | Not Started |
+| `package.json` | Done |
+| `tsconfig.json` | Done |
+| `next.config.ts` | Done |
+| `components.json` | Done |
+| `vitest.config.ts` | Done |
+| `.env.example` | Done |
+| `.gitignore` | Done |
+| `lib/utils.ts` | Done (Shadcn) |
+| `lib/council/types.ts` | Done |
+| `lib/council/openrouter.ts` | Done |
+| `lib/council/prompts.ts` | Done |
+| `lib/council/ranking-parser.ts` | Done |
+| `lib/council/orchestrator.ts` | Done |
+| `app/api/council/stream/route.ts` | Done |
+| `app/page.tsx` | Done (info landing page) |
+| `app/layout.tsx` | Done (scaffold) |
+| `app/globals.css` | Done (Shadcn + Tailwind v4) |
+| `__tests__/ranking-parser.test.ts` | Done (18 tests) |
+| `__tests__/prompts.test.ts` | Done (11 tests) |
+| `__tests__/orchestrator.test.ts` | Done (13 tests) |
 
 ### Phase 2 Files
 
 | File | Status |
 |------|--------|
-| `app/layout.tsx` | Not Started |
-| `app/globals.css` | Not Started |
 | `app/(dashboard)/layout.tsx` | Not Started |
 | `app/(dashboard)/council/page.tsx` | Not Started |
 | `app/(dashboard)/council/[id]/page.tsx` | Not Started |
@@ -123,16 +147,18 @@
 | 1 | Greenfield build (no code migration) | 2026-02-09 | 14 CRITICAL gaps, complete framework change |
 | 2 | Vercel AI SDK + OpenRouter for LLM transport | 2026-02-09 | SDK provides streaming + structured output; OpenRouter gives 200+ model access |
 | 3 | Drizzle ORM + @vercel/postgres (Neon) | 2026-02-09 | Type-safe, migration tooling, same stack as System DNA Workbench |
+| 4 | Removed `compatibility: "compatible"` from createOpenAI | 2026-02-09 | @ai-sdk/openai v3+ removed this option; just use baseURL + apiKey |
+| 5 | Default council: Opus 4.6, o3, Gemini 2.5 Pro, Sonar Pro | 2026-02-09 | Top-tier reasoning models + Perplexity for web-grounded perspective |
+| 6 | Removed DeepSeek R1 from default council | 2026-02-09 | Unreliable response times via OpenRouter, frequently timing out |
 
 ---
 
 ## Next Steps
 
-1. **Run `create-next-app`** to scaffold the Next.js project with TypeScript + Tailwind
-2. **Create `lib/council/types.ts`** — all TypeScript interfaces for the pipeline
-3. **Create `lib/council/ranking-parser.ts`** + unit tests — port regex logic from Python
+1. **Phase 2: UI** — Build dashboard layout, SSE client hook, stage panels, chat input, sidebar
+2. **Phase 3: Database + Auth** — Can run in parallel with Phase 2
 
-These are the first 3 tasks of Phase 1. See `docs/IMPLEMENTATION.md` Phase 1 for full breakdown.
+See `docs/IMPLEMENTATION.md` Phase 2 and Phase 3 for full breakdown.
 
 ---
 
@@ -141,3 +167,4 @@ These are the first 3 tasks of Phase 1. See `docs/IMPLEMENTATION.md` Phase 1 for
 | Date | Session | What Was Done |
 |------|---------|---------------|
 | 2026-02-09 | 1 | Created project directory, git init, wrote all 6 documentation files (GAP_ANALYSIS, REQUIREMENTS, DESIGN, IMPLEMENTATION, CLAUDE.md, STATUS.md). Analyzed Karpathy prototype: council.py (335 lines), main.py (199 lines), openrouter.py (79 lines), storage.py (172 lines), App.jsx (201 lines), Stage2.jsx (99 lines), config.py (27 lines). Pushed to GitHub. |
+| 2026-02-09 | 2 | **Phase 1 complete.** Scaffolded Next.js 16.1.6 + TS strict + Tailwind v4 + Shadcn UI. Created .env.example, types.ts, ranking-parser.ts (18 tests), prompts.ts (11 tests), openrouter.ts, orchestrator.ts (13 tests), SSE endpoint. 42 tests passing. Deployed to Vercel. Tested pipeline end-to-end with real models (office chair question). Updated default council to top-tier models. Removed DeepSeek R1 (unreliable). |

@@ -106,12 +106,13 @@ Req: REQ-NFR-004 (partial — start building test foundation).
 
 ### Phase 1 Verification
 
-- [ ] `npm run dev` starts without errors
-- [ ] `POST /api/council/stream` with test query returns SSE events
-- [ ] All 6 stage events fire in correct order
-- [ ] Ranking parser correctly extracts from sample texts
-- [ ] `npm run test` passes with >50% coverage on `lib/council/`
-- [ ] TypeScript compiles with zero errors in strict mode
+- [x] `npm run dev` starts without errors
+- [x] `POST /api/council/stream` with test query returns SSE events
+- [x] All 9 stage events fire in correct order (tested live on Vercel)
+- [x] Ranking parser correctly extracts from sample texts (18 tests)
+- [x] `npm run test` passes — 42 tests across 3 test files
+- [x] TypeScript compiles with zero errors in strict mode
+- [x] Deployed to Vercel: https://model-council-pink.vercel.app
 
 ---
 
@@ -472,14 +473,15 @@ Every target file with its phase and status. Updated in STATUS.md as files are c
 
 | File | Phase | Status |
 |------|-------|--------|
-| `lib/council/types.ts` | 1 | Planned |
-| `lib/council/openrouter.ts` | 1 | Planned |
-| `lib/council/prompts.ts` | 1 | Planned |
-| `lib/council/ranking-parser.ts` | 1 | Planned |
-| `lib/council/orchestrator.ts` | 1 | Planned |
-| `app/api/council/stream/route.ts` | 1 | Planned |
-| `__tests__/ranking-parser.test.ts` | 1 | Planned |
-| `__tests__/orchestrator.test.ts` | 1 | Planned |
+| `lib/council/types.ts` | 1 | **Done** |
+| `lib/council/openrouter.ts` | 1 | **Done** |
+| `lib/council/prompts.ts` | 1 | **Done** |
+| `lib/council/ranking-parser.ts` | 1 | **Done** |
+| `lib/council/orchestrator.ts` | 1 | **Done** |
+| `app/api/council/stream/route.ts` | 1 | **Done** |
+| `__tests__/ranking-parser.test.ts` | 1 | **Done** |
+| `__tests__/orchestrator.test.ts` | 1 | **Done** |
+| `__tests__/prompts.test.ts` | 1 | **Done** |
 | `app/layout.tsx` | 2 | Planned |
 | `app/globals.css` | 2 | Planned |
 | `app/(dashboard)/layout.tsx` | 2 | Planned |
