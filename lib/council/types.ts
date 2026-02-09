@@ -71,7 +71,6 @@ export const DEFAULT_COUNCIL_CONFIG: CouncilConfig = {
     "anthropic/claude-opus-4-6",
     "openai/o3",
     "google/gemini-2.5-pro",
-    "deepseek/deepseek-r1",
     "perplexity/sonar-pro",
   ],
   chairmanModel: "anthropic/claude-opus-4-6",

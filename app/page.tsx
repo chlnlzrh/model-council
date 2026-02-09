@@ -27,7 +27,6 @@ export default function Home() {
               "Claude Opus 4.6",
               "OpenAI o3",
               "Gemini 2.5 Pro",
-              "DeepSeek R1",
               "Perplexity Sonar Pro",
             ].map((model) => (
               <li key={model} className="text-xs text-gray-500">
