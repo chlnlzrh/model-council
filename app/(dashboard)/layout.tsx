@@ -1,15 +1,45 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, createContext, useContext } from "react";
 import { useSession } from "next-auth/react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/layout/sidebar";
+import { useModelConfig } from "@/hooks/use-model-config";
 
 interface Conversation {
   id: string;
   title: string;
+}
+
+interface DashboardContextValue {
+  conversations: Conversation[];
+  activeId: string | null;
+  setActiveId: (id: string | null) => void;
+  handleNew: () => void;
+  updateTitle: (id: string, title: string) => void;
+  addConversation: (id: string, title: string) => void;
+  modelConfig: {
+    councilModels: string[];
+    chairmanModel: string;
+  };
+  updateModelConfig: (update: Partial<{ councilModels: string[]; chairmanModel: string }>) => void;
+}
+
+const DashboardContext = createContext<DashboardContextValue>({
+  conversations: [],
+  activeId: null,
+  setActiveId: () => {},
+  handleNew: () => {},
+  updateTitle: () => {},
+  addConversation: () => {},
+  modelConfig: { councilModels: [], chairmanModel: "" },
+  updateModelConfig: () => {},
+});
+
+export function useDashboard() {
+  return useContext(DashboardContext);
 }
 
 export default function DashboardLayout({
@@ -21,6 +51,7 @@ export default function DashboardLayout({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { config: modelConfig, updateConfig: updateModelConfig } = useModelConfig();
 
   // Load conversations from DB
   useEffect(() => {
@@ -32,9 +63,7 @@ export default function DashboardLayout({
   }, [session?.user]);
 
   const handleNew = useCallback(() => {
-    const id = crypto.randomUUID();
-    setConversations((prev) => [{ id, title: "New Council" }, ...prev]);
-    setActiveId(id);
+    setActiveId(null);
     setSidebarOpen(false);
   }, []);
 
@@ -49,7 +78,6 @@ export default function DashboardLayout({
     );
   }, []);
 
-  // When SSE creates a conversation, add it to the list
   const addConversation = useCallback((id: string, title: string) => {
     setConversations((prev) => {
       if (prev.some((c) => c.id === id)) {
@@ -102,6 +130,8 @@ export default function DashboardLayout({
             handleNew,
             updateTitle,
             addConversation,
+            modelConfig,
+            updateModelConfig,
           }}
         >
           {children}
@@ -109,29 +139,4 @@ export default function DashboardLayout({
       </div>
     </div>
   );
-}
-
-// Simple context for dashboard state
-import { createContext, useContext } from "react";
-
-interface DashboardContextValue {
-  conversations: Conversation[];
-  activeId: string | null;
-  setActiveId: (id: string | null) => void;
-  handleNew: () => void;
-  updateTitle: (id: string, title: string) => void;
-  addConversation: (id: string, title: string) => void;
-}
-
-const DashboardContext = createContext<DashboardContextValue>({
-  conversations: [],
-  activeId: null,
-  setActiveId: () => {},
-  handleNew: () => {},
-  updateTitle: () => {},
-  addConversation: () => {},
-});
-
-export function useDashboard() {
-  return useContext(DashboardContext);
 }

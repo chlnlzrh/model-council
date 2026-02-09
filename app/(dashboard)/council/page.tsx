@@ -4,7 +4,7 @@ import { CouncilView } from "@/components/council/council-view";
 import { useDashboard } from "../layout";
 
 export default function CouncilPage() {
-  const { activeId, updateTitle, addConversation } = useDashboard();
+  const { activeId, updateTitle, addConversation, modelConfig } = useDashboard();
 
   const handleTitleChange = (title: string) => {
     if (activeId) updateTitle(activeId, title);
@@ -14,6 +14,8 @@ export default function CouncilPage() {
     <CouncilView
       onTitleChange={handleTitleChange}
       onConversationCreated={addConversation}
+      councilModels={modelConfig.councilModels}
+      chairmanModel={modelConfig.chairmanModel}
     />
   );
 }

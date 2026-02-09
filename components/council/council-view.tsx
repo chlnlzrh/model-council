@@ -13,11 +13,15 @@ import { ChatInput } from "./chat-input";
 interface CouncilViewProps {
   onTitleChange?: (title: string) => void;
   onConversationCreated?: (id: string, title: string) => void;
+  councilModels?: string[];
+  chairmanModel?: string;
 }
 
 export function CouncilView({
   onTitleChange,
   onConversationCreated,
+  councilModels,
+  chairmanModel,
 }: CouncilViewProps) {
   const stream = useCouncilStream();
   const [messages, setMessages] = useState<
@@ -64,7 +68,7 @@ export function CouncilView({
 
   const handleSend = (message: string) => {
     setMessages((prev) => [...prev, { role: "user", content: message }]);
-    stream.sendMessage(message);
+    stream.sendMessage(message, councilModels, chairmanModel);
   };
 
   const hasResponse =

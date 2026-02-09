@@ -29,5 +29,7 @@ export const config = {
     "/analytics/:path*",
     "/api/conversations/:path*",
     "/api/council/:path*",
+    "/api/models/:path*",
+    "/api/presets/:path*",
   ],
 };

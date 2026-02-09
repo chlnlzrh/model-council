@@ -1,7 +1,10 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Moon, Sun, Plus, MessageSquare, Settings, BarChart3 } from "lucide-react";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { Moon, Sun, Plus, MessageSquare, Settings, BarChart3, LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +22,7 @@ export function Sidebar({
   onNew,
 }: SidebarProps) {
   const { theme, setTheme } = useTheme();
+  const pathname = usePathname();
 
   return (
     <div className="flex h-full w-[260px] flex-col border-r border-border bg-muted/30">
@@ -60,19 +64,43 @@ export function Sidebar({
         <div className="mt-4 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Navigation
         </div>
-        <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground">
+        <Link
+          href="/settings"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+            pathname === "/settings"
+              ? "bg-accent text-accent-foreground font-medium"
+              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+          )}
+        >
           <Settings className="h-3 w-3" />
           Settings
-        </button>
-        <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground">
+        </Link>
+        <Link
+          href="/analytics"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+            pathname === "/analytics"
+              ? "bg-accent text-accent-foreground font-medium"
+              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+          )}
+        >
           <BarChart3 className="h-3 w-3" />
           Analytics
-        </button>
+        </Link>
       </nav>
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-border px-4 py-3">
-        <span className="text-[10px] text-muted-foreground">4 models active</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-[10px] text-muted-foreground gap-1 px-1"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+        >
+          <LogOut className="h-3 w-3" />
+          Sign out
+        </Button>
         <Button
           variant="outline"
           size="sm"
