@@ -8,9 +8,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Current Phase** | Phase 1 Complete — Ready for Phase 2 |
-| **Current Task** | Phase 2: UI (Shadcn, Dark Mode, Responsive) |
-| **Overall Completion** | 20% (core pipeline built, tested, deployed) |
+| **Current Phase** | Multi-Mode Specs Complete — Ready for Multi-Mode Implementation |
+| **Current Task** | Step 2: Shared Infrastructure for Multi-Mode Support |
+| **Overall Completion** | 55% (Phases 1-4.5 done, multi-mode specs written, implementation next) |
 | **Last Updated** | 2026-02-09 |
 | **Production URL** | https://model-council-pink.vercel.app |
 
@@ -22,121 +22,142 @@
 |-------|--------|-----------|
 | Docs | **COMPLETE** | 100% |
 | Phase 1: Skeleton + Core Pipeline | **COMPLETE** | 100% |
-| Phase 2: UI (Shadcn, Dark Mode, Responsive) | Not Started | 0% |
-| Phase 3: Database + Auth | Not Started | 0% |
-| Phase 4: New Features | Not Started | 0% |
+| Phase 2: UI (Shadcn, Dark Mode, Responsive) | **COMPLETE** | 100% |
+| Phase 3: Database + Auth | **COMPLETE** | 100% |
+| Phase 4.1-4.2: Settings + Model Discovery | **COMPLETE** | 100% |
+| Phase 4.3: Multi-Turn Conversations | **COMPLETE** | 100% |
+| Phase 4.5: Markdown Export | **COMPLETE** | 100% |
+| Multi-Mode Specs | **COMPLETE** | 100% |
+| Multi-Mode Implementation | Not Started | 0% |
 | Phase 5: Polish + Testing | Not Started | 0% |
 
 ---
 
-## Phase 1 Summary
+## Multi-Mode Specification Documents
 
-| Metric | Value |
-|--------|-------|
-| Tests | 42 passing (18 ranking-parser, 11 prompts, 13 orchestrator) |
-| Build | Zero TypeScript errors in strict mode |
-| Deployment | Live on Vercel with OpenRouter API key configured |
-| Pipeline | Tested end-to-end with real models |
+16 documents in `docs/modes/` totaling ~12,700 lines:
 
-### Default Council (4 models)
+| File | Mode | Lines | Family | Sections |
+|------|------|------:|--------|----------|
+| `00-shared-infrastructure.md` | Cross-cutting concerns | 454 | — | A-J |
+| `01-council.md` | Council (baseline, implemented) | 301 | Evaluation | A-G |
+| `02-vote.md` | Vote | 648 | Evaluation | A-G |
+| `03-jury.md` | Jury | 929 | Evaluation | A-G |
+| `04-debate.md` | Debate | 993 | Evaluation | A-G |
+| `05-delphi.md` | Delphi | 802 | Evaluation | A-G |
+| `06-red-team.md` | Red Team | 768 | Adversarial | A-G |
+| `07-chain.md` | Chain | 622 | Sequential | A-G |
+| `08-specialist-panel.md` | Specialist Panel | 974 | Role-Based | A-G |
+| `09-blueprint.md` | Blueprint | 861 | Role-Based | A-G |
+| `10-peer-review.md` | Peer Review | 1,132 | Role-Based | A-G |
+| `11-tournament.md` | Tournament | 836 | Algorithmic | A-G |
+| `12-confidence-weighted.md` | Confidence-Weighted | 738 | Algorithmic | A-G |
+| `13-decompose.md` | Decompose | 1,072 | Algorithmic | A-G |
+| `14-brainstorm.md` | Brainstorm | 792 | Creative | A-G |
+| `15-fact-check.md` | Fact-Check | 823 | Verification | A-G |
 
-| Role | Model |
-|------|-------|
-| Council + Chairman | `anthropic/claude-opus-4-6` |
-| Council | `openai/o3` |
-| Council | `google/gemini-2.5-pro` |
-| Council | `perplexity/sonar-pro` |
+Each spec contains: Requirements, Pipeline Design (with full prompt templates), SSE Event Sequence, Input Format (Zod), Output Format (TypeScript interfaces), Edge Cases, Database Schema (parsedData JSONB examples).
 
 ---
 
-## File Tracker
+## Multi-Mode Implementation Plan
 
-### Documentation (Complete)
+### Step 1: Shared Infrastructure (Prerequisite for All Modes)
 
-| File | Status |
-|------|--------|
-| `CLAUDE.md` | Done |
-| `docs/GAP_ANALYSIS.md` | Done |
-| `docs/REQUIREMENTS.md` | Done |
-| `docs/DESIGN.md` | Done |
-| `docs/IMPLEMENTATION.md` | Done |
-| `docs/STATUS.md` | Done |
+> Estimated: ~500 LOC across 5-6 files
 
-### Phase 1 Files (Complete)
+| # | Task | File(s) | Description | Status |
+|---|------|---------|-------------|--------|
+| 1.1 | Add `mode` column to conversations | `lib/db/schema.ts` | `mode: text("mode").notNull().default("council")` — values from `DeliberationMode` union | Not Started |
+| 1.2 | Create `deliberation_stages` table | `lib/db/schema.ts` | New table: id, messageId, stageType, stageOrder, model, role, content, parsedData (JSONB), responseTimeMs, createdAt | Not Started |
+| 1.3 | Generate + push migration | `lib/db/migrations/` | `npm run db:generate && npm run db:push` | Not Started |
+| 1.4 | Add DB query helpers | `lib/db/queries.ts` | `saveDeliberationStage()`, `loadDeliberationStages()`, `getConversationMode()` | Not Started |
+| 1.5 | Extend types | `lib/council/types.ts` | `DeliberationMode` union, `BaseModeConfig`, `ModeDefinition`, shared interfaces per spec | Not Started |
+| 1.6 | Mode registry | `lib/council/modes/index.ts` | `MODE_REGISTRY` map, mode dispatcher function, shared validation | Not Started |
+| 1.7 | Extend SSE endpoint | `app/api/council/stream/route.ts` | Accept `mode` field in request, dispatch to mode-specific handler | Not Started |
+| 1.8 | Generic client hook | `hooks/use-deliberation-stream.ts` | Mode-aware SSE consumer with mode-specific state reducers | Not Started |
+| 1.9 | Tests | `__tests__/shared-infrastructure.test.ts` | Mode registry, type validation, dispatcher routing | Not Started |
 
-| File | Status |
-|------|--------|
-| `package.json` | Done |
-| `tsconfig.json` | Done |
-| `next.config.ts` | Done |
-| `components.json` | Done |
-| `vitest.config.ts` | Done |
-| `.env.example` | Done |
-| `.gitignore` | Done |
-| `lib/utils.ts` | Done (Shadcn) |
-| `lib/council/types.ts` | Done |
-| `lib/council/openrouter.ts` | Done |
-| `lib/council/prompts.ts` | Done |
-| `lib/council/ranking-parser.ts` | Done |
-| `lib/council/orchestrator.ts` | Done |
-| `app/api/council/stream/route.ts` | Done |
-| `app/page.tsx` | Done (info landing page) |
-| `app/layout.tsx` | Done (scaffold) |
-| `app/globals.css` | Done (Shadcn + Tailwind v4) |
-| `__tests__/ranking-parser.test.ts` | Done (18 tests) |
-| `__tests__/prompts.test.ts` | Done (11 tests) |
-| `__tests__/orchestrator.test.ts` | Done (13 tests) |
+### Step 2: Implement Modes (Priority Order)
 
-### Phase 2 Files
+Each mode = orchestrator + prompts + parser in a single file under `lib/council/modes/`.
 
-| File | Status |
-|------|--------|
-| `app/(dashboard)/layout.tsx` | Not Started |
-| `app/(dashboard)/council/page.tsx` | Not Started |
-| `app/(dashboard)/council/[id]/page.tsx` | Not Started |
-| `components/council/stage1-panel.tsx` | Not Started |
-| `components/council/stage2-panel.tsx` | Not Started |
-| `components/council/stage3-panel.tsx` | Not Started |
-| `components/council/council-view.tsx` | Not Started |
-| `components/council/chat-input.tsx` | Not Started |
-| `components/council/message-list.tsx` | Not Started |
-| `components/council/loading-stages.tsx` | Not Started |
-| `components/layout/sidebar.tsx` | Not Started |
-| `components/layout/header.tsx` | Not Started |
-| `components/layout/mobile-nav.tsx` | Not Started |
-| `components/layout/theme-toggle.tsx` | Not Started |
-| `hooks/use-council-stream.ts` | Not Started |
-| `hooks/use-conversations.ts` | Not Started |
+| Priority | Mode | File | Complexity | Est. LOC | Dependencies | Status |
+|----------|------|------|-----------|---------|-------------|--------|
+| 1 | **Vote** | `modes/vote.ts` | Low | ~400 | Shared infra, `createLabelMap` | Not Started |
+| 2 | **Chain** | `modes/chain.ts` | Low-Med | ~500 | Shared infra | Not Started |
+| 3 | **Specialist Panel** | `modes/specialist-panel.ts` | Medium | ~700 | Shared infra | Not Started |
+| 4 | **Jury** | `modes/jury.ts` | Medium | ~600 | Shared infra | Not Started |
+| 5 | **Red Team** | `modes/red-team.ts` | Medium | ~700 | Shared infra | Not Started |
+| 6 | **Blueprint** | `modes/blueprint.ts` | Med-High | ~800 | Shared infra | Not Started |
+| 7 | **Peer Review** | `modes/peer-review.ts` | Medium | ~700 | Shared infra | Not Started |
+| 8 | **Debate** | `modes/debate.ts` | High | ~800 | Shared infra, `createLabelMap` | Not Started |
+| 9 | **Tournament** | `modes/tournament.ts` | Medium | ~700 | Shared infra | Not Started |
+| 10 | **Confidence-Weighted** | `modes/confidence-weighted.ts` | Medium | ~600 | Shared infra | Not Started |
+| 11 | **Decompose** | `modes/decompose.ts` | High | ~900 | Shared infra | Not Started |
+| 12 | **Brainstorm** | `modes/brainstorm.ts` | Med-High | ~800 | Shared infra | Not Started |
+| 13 | **Fact-Check** | `modes/fact-check.ts` | High | ~900 | Shared infra | Not Started |
+| 14 | **Delphi** | `modes/delphi.ts` | Very High | ~1200 | Shared infra | Not Started |
 
-### Phase 3 Files
+**Total estimated: ~9,800 LOC** across 14 mode files + shared infra.
 
-| File | Status |
-|------|--------|
-| `lib/db/schema.ts` | Not Started |
-| `lib/db/index.ts` | Not Started |
-| `lib/db/queries.ts` | Not Started |
-| `drizzle.config.ts` | Not Started |
-| `lib/auth/config.ts` | Not Started |
-| `app/api/auth/[...nextauth]/route.ts` | Not Started |
-| `app/(auth)/login/page.tsx` | Not Started |
-| `app/(auth)/register/page.tsx` | Not Started |
-| `middleware.ts` | Not Started |
+### Step 3: UI for Mode Selection + Mode-Specific Views
 
-### Phase 4 Files
+| # | Task | Description | Status |
+|---|------|-------------|--------|
+| 3.1 | Mode selector component | Dropdown/grid on council page to pick deliberation mode | Not Started |
+| 3.2 | Mode-specific config panels | Per-mode configuration UI (role assignment, rounds, rubric selection, etc.) | Not Started |
+| 3.3 | Mode-specific result views | Custom stage panels per mode (bracket viz for Tournament, DAG for Decompose, etc.) | Not Started |
+| 3.4 | Conversation list mode badges | Show which mode was used for each conversation | Not Started |
 
-| File | Status |
-|------|--------|
-| `app/(dashboard)/settings/page.tsx` | Not Started |
-| `app/(dashboard)/analytics/page.tsx` | Not Started |
-| `app/api/models/route.ts` | Not Started |
-| `app/api/conversations/route.ts` | Not Started |
-| `app/api/conversations/[id]/route.ts` | Not Started |
-| `components/settings/model-picker.tsx` | Not Started |
-| `components/settings/preset-manager.tsx` | Not Started |
-| `components/settings/chairman-select.tsx` | Not Started |
-| `components/analytics/win-rate-chart.tsx` | Not Started |
-| `components/analytics/response-time-chart.tsx` | Not Started |
-| `components/analytics/usage-stats.tsx` | Not Started |
+### Step 4: Testing
+
+| # | Task | Description | Status |
+|---|------|-------------|--------|
+| 4.1 | Per-mode unit tests | Parsers, prompt builders, convergence engines, bracket algorithms | Not Started |
+| 4.2 | Per-mode integration tests | Mock SSE streams, verify event sequences | Not Started |
+| 4.3 | E2E with real models | Test each mode end-to-end with live OpenRouter calls | Not Started |
+
+---
+
+## Existing Test Suite
+
+| File | Tests | Status |
+|------|------:|--------|
+| `__tests__/ranking-parser.test.ts` | 18 | Passing |
+| `__tests__/prompts.test.ts` | 11 | Passing |
+| `__tests__/orchestrator.test.ts` | 13 | Passing |
+| `__tests__/analytics-compute.test.ts` | 20 | Passing |
+| **Total** | **62** | **All passing** |
+
+---
+
+## Completed Phases Summary
+
+### Phase 1 — Core Pipeline
+- Types, ranking parser, prompts, OpenRouter client, orchestrator, SSE endpoint
+- 42 tests passing, deployed to Vercel
+
+### Phase 2 — Full Dashboard UI
+- Sidebar, header, mobile nav, theme toggle
+- Council view with 3-stage panels, chat input, message list
+- SSE streaming client hook, loading states, dark mode
+
+### Phase 3 — Database + Auth
+- Drizzle ORM schema (9 tables), Neon Postgres
+- Auth.js v5 with credentials + Google OAuth
+- Route protection middleware, session management
+
+### Phase 4.1-4.2 — Settings + Model Discovery
+- Settings page with model picker, preset manager
+- OpenRouter model discovery API endpoint
+
+### Phase 4.3 — Multi-Turn Conversations
+- Conversation history loading for follow-up questions
+- Context passed to Stage 1 + Stage 3 (not Stage 2)
+
+### Phase 4.5 — Markdown Export
+- Export full conversation with all stage data as .md
 
 ---
 
@@ -150,21 +171,17 @@
 | 4 | Removed `compatibility: "compatible"` from createOpenAI | 2026-02-09 | @ai-sdk/openai v3+ removed this option; just use baseURL + apiKey |
 | 5 | Default council: Opus 4.6, o3, Gemini 2.5 Pro, Sonar Pro | 2026-02-09 | Top-tier reasoning models + Perplexity for web-grounded perspective |
 | 6 | Removed DeepSeek R1 from default council | 2026-02-09 | Unreliable response times via OpenRouter, frequently timing out |
+| 7 | Single `deliberation_stages` table for all new modes | 2026-02-09 | Generic JSONB `parsedData` column avoids schema explosion; Council keeps legacy tables for backward compat |
+| 8 | 15 modes across 6 families | 2026-02-09 | Covers evaluation, adversarial, sequential, role-based, algorithmic, creative, and verification use cases |
+| 9 | Single SSE endpoint with mode dispatcher | 2026-02-09 | Keeps API surface simple; mode-specific logic in orchestrator files |
 
 ---
 
 ## Next Steps
 
-1. **Phase 2: UI** — Build dashboard layout, SSE client hook, stage panels, chat input, sidebar
-2. **Phase 3: Database + Auth** — Can run in parallel with Phase 2
+1. **Implement Step 1: Shared Infrastructure** — DB migration, type extensions, mode registry, dispatcher, generic hook
+2. **Implement Step 2: Vote mode** — Simplest delta from Council, validates the abstraction layer
+3. Continue through priority order (Chain → Specialist Panel → Jury → Red Team → ...)
 
-See `docs/IMPLEMENTATION.md` Phase 2 and Phase 3 for full breakdown.
-
----
-
-## Session Log
-
-| Date | Session | What Was Done |
-|------|---------|---------------|
-| 2026-02-09 | 1 | Created project directory, git init, wrote all 6 documentation files (GAP_ANALYSIS, REQUIREMENTS, DESIGN, IMPLEMENTATION, CLAUDE.md, STATUS.md). Analyzed Karpathy prototype: council.py (335 lines), main.py (199 lines), openrouter.py (79 lines), storage.py (172 lines), App.jsx (201 lines), Stage2.jsx (99 lines), config.py (27 lines). Pushed to GitHub. |
-| 2026-02-09 | 2 | **Phase 1 complete.** Scaffolded Next.js 16.1.6 + TS strict + Tailwind v4 + Shadcn UI. Created .env.example, types.ts, ranking-parser.ts (18 tests), prompts.ts (11 tests), openrouter.ts, orchestrator.ts (13 tests), SSE endpoint. 42 tests passing. Deployed to Vercel. Tested pipeline end-to-end with real models (office chair question). Updated default council to top-tier models. Removed DeepSeek R1 (unreliable). |
+See `docs/modes/00-shared-infrastructure.md` for full shared infrastructure spec.
+See individual `docs/modes/NN-*.md` files for per-mode implementation specs.

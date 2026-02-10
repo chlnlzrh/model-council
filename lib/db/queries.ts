@@ -5,7 +5,7 @@
  * elsewhere in the codebase. Grouped by domain entity.
  */
 
-import { eq, desc, and, asc } from "drizzle-orm";
+import { eq, desc, and, asc, gte, sql } from "drizzle-orm";
 import { db } from "./index";
 import {
   users,
@@ -16,6 +16,7 @@ import {
   stage2LabelMap,
   stage3Synthesis,
   modelPresets,
+  deliberationStages,
 } from "./schema";
 import type {
   Stage1Response,
@@ -23,6 +24,8 @@ import type {
   Stage2Metadata,
   Stage3Response,
   CouncilResult,
+  DeliberationMode,
+  DeliberationStageData,
 } from "@/lib/council/types";
 
 // ---------------------------------------------------------------------------
@@ -70,6 +73,7 @@ export async function getUserById(id: string) {
 export async function createConversation(data: {
   userId: string;
   title?: string;
+  mode?: DeliberationMode;
   modelPresetId?: string;
 }) {
   const [conv] = await db
@@ -77,6 +81,7 @@ export async function createConversation(data: {
     .values({
       userId: data.userId,
       title: data.title ?? "New Council",
+      mode: data.mode ?? "council",
       modelPresetId: data.modelPresetId ?? null,
     })
     .returning();
@@ -88,6 +93,7 @@ export async function getUserConversations(userId: string) {
     .select({
       id: conversations.id,
       title: conversations.title,
+      mode: conversations.mode,
       createdAt: conversations.createdAt,
       updatedAt: conversations.updatedAt,
     })
@@ -351,4 +357,176 @@ export async function getDefaultPreset(userId: string) {
 
 export async function deleteModelPreset(id: string) {
   await db.delete(modelPresets).where(eq(modelPresets.id, id));
+}
+
+// ---------------------------------------------------------------------------
+// Analytics — Stage 2 Data (for win rates)
+// ---------------------------------------------------------------------------
+
+export async function getStage2DataForUser(
+  userId: string,
+  fromDate: Date | null
+) {
+  const rankingsQuery = db
+    .select({
+      messageId: stage2Rankings.messageId,
+      rankerModel: stage2Rankings.model,
+      parsedRanking: stage2Rankings.parsedRanking,
+    })
+    .from(stage2Rankings)
+    .innerJoin(messages, eq(stage2Rankings.messageId, messages.id))
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(
+      fromDate
+        ? and(eq(conversations.userId, userId), gte(messages.createdAt, fromDate))
+        : eq(conversations.userId, userId)
+    );
+
+  const labelMapQuery = db
+    .select({
+      messageId: stage2LabelMap.messageId,
+      label: stage2LabelMap.label,
+      model: stage2LabelMap.model,
+    })
+    .from(stage2LabelMap)
+    .innerJoin(messages, eq(stage2LabelMap.messageId, messages.id))
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(
+      fromDate
+        ? and(eq(conversations.userId, userId), gte(messages.createdAt, fromDate))
+        : eq(conversations.userId, userId)
+    );
+
+  const [rankings, labelMaps] = await Promise.all([
+    rankingsQuery,
+    labelMapQuery,
+  ]);
+
+  return { rankings, labelMaps };
+}
+
+// ---------------------------------------------------------------------------
+// Analytics — Stage 1 Times (for response times)
+// ---------------------------------------------------------------------------
+
+export async function getStage1TimesForUser(
+  userId: string,
+  fromDate: Date | null
+) {
+  return db
+    .select({
+      model: stage1Responses.model,
+      responseTimeMs: stage1Responses.responseTimeMs,
+    })
+    .from(stage1Responses)
+    .innerJoin(messages, eq(stage1Responses.messageId, messages.id))
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(
+      fromDate
+        ? and(eq(conversations.userId, userId), gte(messages.createdAt, fromDate))
+        : eq(conversations.userId, userId)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Analytics — Usage Stats
+// ---------------------------------------------------------------------------
+
+export async function getUsageStatsForUser(
+  userId: string,
+  fromDate: Date | null
+) {
+  const sessionCountQuery = db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(conversations)
+    .where(
+      fromDate
+        ? and(eq(conversations.userId, userId), gte(conversations.createdAt, fromDate))
+        : eq(conversations.userId, userId)
+    );
+
+  const messageDatesQuery = db
+    .select({ createdAt: messages.createdAt })
+    .from(messages)
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(
+      fromDate
+        ? and(
+            eq(conversations.userId, userId),
+            eq(messages.role, "assistant"),
+            gte(messages.createdAt, fromDate)
+          )
+        : and(eq(conversations.userId, userId), eq(messages.role, "assistant"))
+    )
+    .orderBy(asc(messages.createdAt));
+
+  const [sessionCountResult, messageDates] = await Promise.all([
+    sessionCountQuery,
+    messageDatesQuery,
+  ]);
+
+  return {
+    totalSessions: sessionCountResult[0]?.count ?? 0,
+    messageDates,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Deliberation Stages — Generic storage for all non-Council modes
+// ---------------------------------------------------------------------------
+
+export async function saveDeliberationStage(
+  messageId: string,
+  stage: DeliberationStageData
+) {
+  const [row] = await db
+    .insert(deliberationStages)
+    .values({
+      messageId,
+      stageType: stage.stageType,
+      stageOrder: stage.stageOrder,
+      model: stage.model,
+      role: stage.role,
+      content: stage.content,
+      parsedData: stage.parsedData,
+      responseTimeMs: stage.responseTimeMs,
+    })
+    .returning();
+  return row;
+}
+
+export async function saveDeliberationStages(
+  messageId: string,
+  stages: DeliberationStageData[]
+) {
+  if (stages.length === 0) return;
+  await db.insert(deliberationStages).values(
+    stages.map((s) => ({
+      messageId,
+      stageType: s.stageType,
+      stageOrder: s.stageOrder,
+      model: s.model,
+      role: s.role,
+      content: s.content,
+      parsedData: s.parsedData,
+      responseTimeMs: s.responseTimeMs,
+    }))
+  );
+}
+
+export async function getDeliberationStagesByMessage(messageId: string) {
+  return db
+    .select()
+    .from(deliberationStages)
+    .where(eq(deliberationStages.messageId, messageId))
+    .orderBy(asc(deliberationStages.stageOrder));
+}
+
+export async function getConversationMode(conversationId: string) {
+  const [conv] = await db
+    .select({ mode: conversations.mode })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .limit(1);
+  return (conv?.mode as DeliberationMode) ?? null;
 }

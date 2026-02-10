@@ -1,0 +1,792 @@
+# 14 — Brainstorm Mode
+
+> Ideate, cluster, score, refine. Creative exploration optimized for quantity before quality.
+
+**Family:** Creative
+**Status:** Specified
+**Min Models:** 3 (ideators share curator/refiner roles, or use dedicated models)
+**Max Models:** 6 ideators + 1 curator + 1 refiner (curator/refiner may overlap with ideators)
+**Multi-turn:** No
+**Stages:** Ideate (parallel) + Cluster + Score (parallel) + Refine
+
+---
+
+## A. Requirements
+
+### Functional
+
+1. User submits a creative challenge or open-ended question.
+2. **Phase 1 — Ideate:** All models generate ideas freely in parallel. Each produces 5-10 distinct ideas with brief descriptions. No judgment, no self-censoring — maximize diversity and quantity.
+3. **Phase 2 — Cluster:** A curator model receives ALL ideas from all models. Groups similar ideas into 4-8 themed clusters. Each cluster gets a name, theme description, member ideas, and initial promise assessment (HIGH/MEDIUM/LOW).
+4. **Phase 3 — Score:** All models score each cluster on 3 dimensions: Novelty (1-5), Feasibility (1-5), Impact (1-5). Scores are aggregated to rank clusters by average total score.
+5. **Phase 4 — Refine:** A refiner model takes the top-scoring cluster and develops it into a fully fleshed-out proposal with executive summary, implementation approach, advantages, risks, and next steps.
+6. A title is generated for new conversations.
+7. All results are saved to the database via the `deliberation_stages` table.
+
+### Non-Functional
+
+- Phase 1 completes in the time of the slowest ideator (parallel).
+- Phase 2 is a single sequential model call (curator).
+- Phase 3 completes in the time of the slowest scorer (parallel).
+- Phase 4 is a single sequential model call (refiner).
+- Per-stage timeout: 120 seconds.
+- Global pipeline timeout: 600 seconds.
+- Total pipeline target: under 180 seconds.
+
+### Model Constraints
+
+- Minimum 3 models total. All 3 can serve as ideators, with one doubling as curator and one as refiner.
+- Maximum 6 ideators. Curator and refiner may be any of the ideators or separate models.
+- The curator model SHOULD be a strong reasoning model (handles organizational logic).
+- The refiner model SHOULD be a strong writing model (produces polished prose).
+
+### What Makes It Distinct
+
+- Quantity-first philosophy: models generate freely before any evaluation occurs.
+- Clustering introduces emergent themes that no single model anticipated.
+- Multi-dimensional scoring (Novelty + Feasibility + Impact) prevents generic "best idea" bias.
+- The top cluster, not the top individual idea, is refined — capturing synergies between related ideas.
+- Full creative provenance: every idea traces back to its source model.
+
+---
+
+## B. Pipeline Design
+
+### Stages
+
+| Stage | Name | Parallel? | Input | Output |
+|-------|------|-----------|-------|--------|
+| 1 | Ideate | Yes | User challenge | `IdeationResponse[]` (one per model) |
+| 2 | Cluster | No | All ideas from Phase 1 | `ClusteringResponse` |
+| 3 | Score | Yes | All clusters from Phase 2 | `ScoringResponse[]` (one per scorer) |
+| 4 | Refine | No | Top-scoring cluster | `RefinementResponse` |
+
+### Data Flow
+
+```
+User Challenge
+    |
+    v
+Phase 1: queryModelsParallel(ideationModels, ideationPrompt)
+    | IdeationResponse[] — each model produces 5-10 ideas
+    | parseIdeas() per model → flat list of BrainstormIdea[]
+    v
+Phase 2: queryModel(curatorModel, clusteringPrompt(allIdeas))
+    | ClusteringResponse — 4-8 themed clusters
+    | parseClusters() → IdeaCluster[]
+    v
+Phase 3: queryModelsParallel(scoringModels, scoringPrompt(clusters))
+    | ScoringResponse[] — each scorer rates every cluster
+    | parseScores() per scorer → aggregateClusterScores()
+    | Sort clusters by average total score descending
+    v
+Phase 4: queryModel(refinerModel, refinementPrompt(topCluster))
+    | RefinementResponse — polished proposal
+    v
+generateTitle() → save to DB → stream to client
+```
+
+### Prompt Templates
+
+**Ideation Prompt** (`buildIdeationPrompt`):
+
+```
+You are a creative brainstorming engine. Generate 5-10 diverse, creative ideas in response to the following challenge. Prioritize QUANTITY and DIVERSITY over polish. Include wild ideas, conventional ideas, and combinations.
+
+CHALLENGE:
+{{userQuery}}
+
+Rules:
+1. Generate at least 5 ideas, up to 10.
+2. Each idea should be DISTINCT — avoid variations of the same concept.
+3. For each idea, provide a brief title and 1-2 sentence description.
+4. Think across different dimensions: technical approaches, business angles, user experience, unconventional methods.
+5. Do NOT self-censor. Include ambitious, unusual, or seemingly impractical ideas alongside safe ones.
+6. Do NOT evaluate or rank — just generate.
+
+IDEAS:
+
+IDEA 1: [Title]
+[1-2 sentence description]
+
+IDEA 2: [Title]
+[1-2 sentence description]
+
+...
+```
+
+**Clustering Prompt** (`buildClusteringPrompt`):
+
+```
+You are organizing brainstormed ideas into themed clusters. {{TOTAL_IDEAS}} ideas were generated by {{MODEL_COUNT}} models.
+
+CHALLENGE:
+{{userQuery}}
+
+ALL IDEAS:
+{{#each IDEAS}}
+[{{id}}] {{title}} — {{description}} (from {{sourceLabel}})
+{{/each}}
+
+Group these ideas into 4-8 themed clusters. Each cluster should:
+1. Have a clear theme name
+2. Contain 2-10 related ideas (referenced by ID)
+3. Include a brief description of the cluster's theme
+4. Provide an initial promise assessment: HIGH / MEDIUM / LOW
+
+CLUSTER 1: [Theme Name]
+Theme: [1-2 sentence theme description]
+Promise: [HIGH|MEDIUM|LOW]
+Ideas: [comma-separated idea IDs, e.g., model_0_idea_1, model_1_idea_3]
+
+CLUSTER 2: [Theme Name]
+Theme: [1-2 sentence theme description]
+Promise: [HIGH|MEDIUM|LOW]
+Ideas: [comma-separated idea IDs]
+
+...
+
+CLUSTERING SUMMARY:
+Total clusters: [count]
+Ideas clustered: [count] / {{TOTAL_IDEAS}}
+Unclustered ideas: [list any that didn't fit, or "none"]
+```
+
+**Scoring Prompt** (`buildScoringPrompt`):
+
+```
+You are evaluating brainstorm idea clusters. Score each cluster on 3 dimensions (1-5 each).
+
+CHALLENGE:
+{{userQuery}}
+
+CLUSTERS:
+{{#each CLUSTERS}}
+--- Cluster {{@index + 1}}: {{name}} ---
+Theme: {{theme}}
+Ideas:
+{{#each ideas}}
+- {{title}}: {{description}}
+{{/each}}
+
+{{/each}}
+
+For EACH cluster, score:
+- **Novelty** (1-5): How original and creative is this direction?
+- **Feasibility** (1-5): How practical and achievable is this?
+- **Impact** (1-5): How significant would the outcome be if executed well?
+
+Provide brief justification for each dimension.
+
+Format:
+SCORES:
+Cluster 1: Novelty=[1-5] Feasibility=[1-5] Impact=[1-5]
+Justification: [1 sentence per dimension]
+Cluster 2: Novelty=[1-5] Feasibility=[1-5] Impact=[1-5]
+Justification: [1 sentence per dimension]
+...
+```
+
+**Refinement Prompt** (`buildRefinementPrompt`):
+
+```
+You are developing the top-scoring brainstorm cluster into a fully fleshed-out proposal.
+
+ORIGINAL CHALLENGE:
+{{userQuery}}
+
+WINNING CLUSTER: {{CLUSTER_NAME}}
+Theme: {{CLUSTER_THEME}}
+Aggregate Score: Novelty {{AVG_NOVELTY}}/5, Feasibility {{AVG_FEASIBILITY}}/5, Impact {{AVG_IMPACT}}/5
+
+IDEAS IN THIS CLUSTER:
+{{#each CLUSTER_IDEAS}}
+- {{title}}: {{description}}
+{{/each}}
+
+Develop this cluster into a comprehensive proposal:
+
+## Proposal: {{CLUSTER_NAME}}
+
+### Executive Summary
+[2-3 paragraph overview of the proposed solution/approach]
+
+### Core Concept
+[Detailed explanation of the main idea, synthesizing the best elements from the cluster]
+
+### Implementation Approach
+[Step-by-step implementation plan with key milestones]
+
+### Advantages
+[Numbered list of key benefits]
+
+### Risks & Mitigations
+| Risk | Impact | Mitigation |
+|------|--------|-----------|
+
+### Next Steps
+[3-5 concrete next actions to move forward]
+
+### Alternative Ideas from This Cluster
+[Brief mention of other ideas in the cluster that could complement the main proposal]
+```
+
+### Parser Functions
+
+```typescript
+interface BrainstormIdea {
+  id: string;           // "model_0_idea_1"
+  sourceModel: string;  // "anthropic/claude-opus-4-6"
+  sourceLabel: string;  // "Model A" (anonymized for clustering prompt)
+  title: string;
+  description: string;
+}
+
+function parseIdeas(text: string, model: string, modelIndex: number): BrainstormIdea[] {
+  // Regex: /IDEA\s+(\d+):\s*(.+)\n([\s\S]*?)(?=IDEA\s+\d+:|$)/gi
+  // Each match produces a BrainstormIdea with id: `model_${modelIndex}_idea_${ideaNum}`
+  // Fallback: split by "IDEA" keyword and parse each block
+  // Returns array of parsed ideas with unique IDs
+}
+
+interface IdeaCluster {
+  id: string;           // "cluster_1"
+  name: string;
+  theme: string;
+  promise: "HIGH" | "MEDIUM" | "LOW";
+  ideaIds: string[];
+  ideas: BrainstormIdea[];  // resolved from ideaIds
+  scores?: ClusterScore[];
+  averageScore?: number;
+  averageNovelty?: number;
+  averageFeasibility?: number;
+  averageImpact?: number;
+}
+
+function parseClusters(text: string, allIdeas: BrainstormIdea[]): {
+  clusters: IdeaCluster[];
+  unclusteredIdeas: BrainstormIdea[];
+} {
+  // Regex: /CLUSTER\s+(\d+):\s*(.+)\nTheme:\s*(.+)\nPromise:\s*(HIGH|MEDIUM|LOW)\nIdeas:\s*(.+)/gi
+  // Resolve ideaIds to full BrainstormIdea objects from the allIdeas pool
+  // Track unclustered ideas (IDs not assigned to any cluster)
+}
+
+interface ClusterScore {
+  model: string;
+  clusterId: string;
+  novelty: number;     // 1-5
+  feasibility: number; // 1-5
+  impact: number;      // 1-5
+  total: number;       // novelty + feasibility + impact (3-15)
+}
+
+function parseScores(text: string, model: string, clusterIds: string[]): ClusterScore[] {
+  // Regex: /Cluster\s+(\d+):\s*Novelty=(\d)\s*Feasibility=(\d)\s*Impact=(\d)/gi
+  // Returns array of ClusterScore, one per cluster
+}
+
+function aggregateClusterScores(
+  clusters: IdeaCluster[],
+  allScores: Map<string, ClusterScore[]>  // model → ClusterScore[]
+): IdeaCluster[] {
+  // For each cluster: average novelty, feasibility, impact, and total across all scorers
+  // Sort clusters by average total score descending
+  // Attach scores and averages to each cluster
+  // Return sorted array
+}
+```
+
+---
+
+## C. SSE Event Sequence
+
+```
+ 1. brainstorm_start        → { conversationId, messageId, config }
+ 2. ideation_start          → {}
+ 3. ideation_complete       → { model, ideas, ideaCount, responseTimeMs }
+    (repeated per model as each finishes — up to 6 events)
+ 4. all_ideation_complete   → { totalIdeas, modelCount }
+ 5. clustering_start        → {}
+ 6. clustering_complete     → { model, clusters, totalClusters, unclusteredCount, responseTimeMs }
+ 7. scoring_start           → {}
+ 8. scorer_complete         → { model, scores, responseTimeMs }
+    (repeated per scorer as each finishes — up to 6 events)
+ 9. all_scoring_complete    → { rankedClusters }
+10. refinement_start        → { cluster }
+11. refinement_complete     → { model, proposal, responseTimeMs }
+12. title_complete          → { title }
+13. complete                → {}
+```
+
+On error at any point:
+```
+error → { message: string }
+```
+
+### TypeScript Payload Interfaces
+
+```typescript
+// brainstorm_start
+interface BrainstormStartPayload {
+  conversationId: string;
+  messageId: string;
+  config: {
+    models: string[];
+    curatorModel: string;
+    refinerModel: string;
+    minIdeasPerModel: number;
+    maxClusters: number;
+  };
+}
+
+// ideation_complete (per model)
+interface IdeationCompletePayload {
+  model: string;
+  ideas: Array<{ id: string; title: string; description: string }>;
+  ideaCount: number;
+  responseTimeMs: number;
+}
+
+// all_ideation_complete
+interface AllIdeationCompletePayload {
+  totalIdeas: number;
+  modelCount: number;
+}
+
+// clustering_complete
+interface ClusteringCompletePayload {
+  model: string;
+  clusters: Array<{
+    id: string;
+    name: string;
+    theme: string;
+    promise: "HIGH" | "MEDIUM" | "LOW";
+    ideaCount: number;
+    ideaIds: string[];
+  }>;
+  totalClusters: number;
+  unclusteredCount: number;
+  responseTimeMs: number;
+}
+
+// scorer_complete (per scorer)
+interface ScorerCompletePayload {
+  model: string;
+  scores: Array<{
+    clusterId: string;
+    novelty: number;
+    feasibility: number;
+    impact: number;
+    total: number;
+  }>;
+  responseTimeMs: number;
+}
+
+// all_scoring_complete
+interface AllScoringCompletePayload {
+  rankedClusters: Array<{
+    id: string;
+    name: string;
+    averageNovelty: number;
+    averageFeasibility: number;
+    averageImpact: number;
+    averageScore: number;
+    rank: number;
+  }>;
+}
+
+// refinement_start
+interface RefinementStartPayload {
+  cluster: {
+    id: string;
+    name: string;
+    theme: string;
+    averageScore: number;
+  };
+}
+
+// refinement_complete
+interface RefinementCompletePayload {
+  model: string;
+  proposal: string;
+  responseTimeMs: number;
+}
+
+// title_complete
+interface TitleCompletePayload {
+  data: { title: string };
+}
+```
+
+---
+
+## D. Input Format
+
+### Request Body
+
+```typescript
+interface BrainstormStreamRequest {
+  question: string;
+  mode: "brainstorm";
+  conversationId?: string;
+  modeConfig?: BrainstormConfig;
+}
+
+interface BrainstormConfig {
+  models?: string[];          // ideation + scoring models (3-6)
+  curatorModel?: string;      // clusters ideas (may be one of the models)
+  refinerModel?: string;      // refines top cluster (may be one of the models)
+  minIdeasPerModel?: number;  // 3-10, default 5
+  maxClusters?: number;       // 3-8, default 6
+  timeoutMs?: number;         // per-stage timeout, default 120_000
+}
+```
+
+### Zod Validation
+
+```typescript
+const brainstormConfigSchema = z.object({
+  models: z.array(z.string()).min(3).max(6).optional(),
+  curatorModel: z.string().optional(),
+  refinerModel: z.string().optional(),
+  minIdeasPerModel: z.number().int().min(3).max(10).default(5),
+  maxClusters: z.number().int().min(3).max(8).default(6),
+  timeoutMs: z.number().min(30_000).max(180_000).default(120_000),
+}).optional();
+
+const brainstormRequestSchema = z.object({
+  question: z.string().min(1, "Creative challenge is required"),
+  mode: z.literal("brainstorm"),
+  conversationId: z.string().optional(),
+  modeConfig: brainstormConfigSchema,
+});
+```
+
+### Example Requests
+
+Creative challenge:
+```json
+{
+  "question": "How might we reduce food waste in urban restaurants by 50% within 2 years?",
+  "mode": "brainstorm",
+  "modeConfig": {
+    "models": ["anthropic/claude-opus-4-6", "openai/o3", "google/gemini-2.5-pro", "meta-llama/llama-4-maverick"],
+    "curatorModel": "anthropic/claude-opus-4-6",
+    "refinerModel": "openai/o3"
+  }
+}
+```
+
+Product brainstorm:
+```json
+{
+  "question": "Generate novel features for a next-generation code editor that uses AI agents as first-class citizens",
+  "mode": "brainstorm",
+  "modeConfig": {
+    "models": ["anthropic/claude-opus-4-6", "openai/o3", "google/gemini-2.5-pro"],
+    "curatorModel": "google/gemini-2.5-pro",
+    "refinerModel": "anthropic/claude-opus-4-6",
+    "minIdeasPerModel": 8,
+    "maxClusters": 8
+  }
+}
+```
+
+Minimal (defaults):
+```json
+{
+  "question": "What are innovative ways to teach programming to children aged 6-10?",
+  "mode": "brainstorm"
+}
+```
+
+---
+
+## E. Output Format
+
+### Result Interface
+
+```typescript
+interface BrainstormResult {
+  ideation: Array<{
+    model: string;
+    ideas: BrainstormIdea[];
+    responseTimeMs: number;
+  }>;
+  totalIdeas: number;
+  clustering: {
+    model: string;
+    clusters: IdeaCluster[];
+    unclusteredIdeas: BrainstormIdea[];
+    responseTimeMs: number;
+  };
+  scoring: {
+    scorers: Array<{
+      model: string;
+      scores: ClusterScore[];
+      responseTimeMs: number;
+    }>;
+    rankedClusters: IdeaCluster[];  // sorted by avg score descending
+  };
+  refinement: {
+    model: string;
+    winningCluster: IdeaCluster;
+    proposal: string;
+    responseTimeMs: number;
+  };
+  title?: string;
+}
+```
+
+### UI Display
+
+- **Phase 1 (Ideate):** Idea cards appearing progressively as each model completes, grouped by model in columns. Each card shows idea title, description, and source model badge. Total idea count displayed as a live counter badge in the phase header. Cards animate in with a staggered reveal (300ms spring).
+- **Phase 2 (Cluster):** Animated clustering visualization — ideas visually flow from the ungrouped pool into cluster group cards. Each cluster card shows theme name, member count, and promise badge (HIGH = green, MEDIUM = amber, LOW = gray). Expandable to see member ideas.
+- **Phase 3 (Score):** Score overlay on cluster cards — three colored horizontal bars for Novelty (purple), Feasibility (blue), Impact (green). Scores update as each scorer completes. Clusters animate reordering by score. Top cluster highlighted with a gold border. Score range tooltip on hover.
+- **Phase 4 (Refine):** Full proposal displayed as the main output in the chat, rendered as markdown with expandable sections. Below the proposal: collapsible panels for "All Clusters" (ranked) and "All Raw Ideas" (grouped by model).
+- **Metrics Bar:** Total ideas generated, number of clusters, top cluster score, ideation diversity ratio (unique themes / total ideas).
+
+### DB Storage
+
+All data stored in `deliberation_stages` table:
+
+| stageType | stageOrder | model | role | content | parsedData |
+|-----------|------------|-------|------|---------|------------|
+| `ideation_0` | 0 | ideator model 0 | `ideator` | raw ideation text | `IdeationParsedData` |
+| `ideation_1` | 1 | ideator model 1 | `ideator` | raw ideation text | `IdeationParsedData` |
+| ... | ... | ... | ... | ... | ... |
+| `ideation_5` | 5 | ideator model 5 | `ideator` | raw ideation text | `IdeationParsedData` |
+| `clustering` | 10 | curator model | `curator` | raw clustering text | `ClusteringParsedData` |
+| `scoring_0` | 20 | scorer model 0 | `scorer` | raw scoring text | `ScoringParsedData` |
+| `scoring_1` | 21 | scorer model 1 | `scorer` | raw scoring text | `ScoringParsedData` |
+| ... | ... | ... | ... | ... | ... |
+| `scoring_5` | 25 | scorer model 5 | `scorer` | raw scoring text | `ScoringParsedData` |
+| `refinement` | 99 | refiner model | `refiner` | refined proposal text | `RefinementParsedData` |
+
+---
+
+## F. Edge Cases
+
+| Scenario | Handling |
+|----------|----------|
+| A model produces fewer than 3 ideas | Warn but include what was generated. Minimum 10 total ideas across all models needed for meaningful clustering. If total < 10, proceed with reduced `maxClusters` (min 3). |
+| A model produces 0 ideas (or parsing fails entirely) | Exclude that model's output. If fewer than 2 models produced parseable ideas, emit `error`: "Insufficient ideation output." |
+| All models produce very similar ideas | Clustering produces few clusters with many members each. Still valid — the scoring phase differentiates. |
+| Clustering model produces fewer than 3 clusters | Proceed with available clusters. If only 1 cluster, skip scoring and send it directly to refinement. |
+| Clustering model fails entirely | Fallback: skip clustering. Refiner receives all raw ideas grouped by model and is asked to identify the most promising direction. Set `parsedData.fallback = true`. |
+| Score parsing fails for a model | Exclude from aggregation. Need minimum 2 valid scorers for meaningful ranking. If fewer than 2, use curator's promise assessment (HIGH > MEDIUM > LOW) as ranking. |
+| Two or more clusters tied for top score | Refiner receives all tied clusters. Refinement prompt is augmented: "Multiple clusters are tied. Choose the most promising one, or merge them if they are complementary." |
+| Refiner model fails | Emit `error` event. Output the winning cluster's description + member ideas as the result with a warning: "Refinement failed. Displaying top cluster raw output." |
+| Single-idea clusters (cluster has only 1 idea) | Valid but noted. Scoring proceeds normally. The refinement prompt still asks for elaboration even from a single seed idea. |
+| User challenge is extremely vague ("ideas") | Models will generate ideas about "ideas." No validation beyond `min(1)`. The quality of output depends on input quality. |
+| Per-stage timeout (120s) | Ideation: proceed with completed models (need min 2). Clustering: fatal, apply clustering fallback. Scoring: proceed with completed scorers (need min 2). Refinement: apply refiner failure handling. |
+| Global pipeline timeout (600s) | Complete current stage, skip remaining stages, emit partial results with available data. |
+| Idea IDs in clustering don't match actual ideas | Log mismatch. Ideas with unrecognized IDs are placed in "unclustered." Clusters with 0 valid ideas after resolution are dropped. |
+
+---
+
+## G. Database Schema
+
+Uses the `deliberation_stages` table exclusively (no legacy tables).
+
+### Row Shapes
+
+**Ideation row (one per model):**
+```typescript
+{
+  id: "uuid",
+  messageId: "msg-uuid",
+  stageType: "ideation_0",
+  stageOrder: 0,
+  model: "anthropic/claude-opus-4-6",
+  role: "ideator",
+  content: "IDEAS:\n\nIDEA 1: Smart Waste Bins\nAI-powered bins that photograph discarded food and track waste patterns to identify the most wasted items.\n\nIDEA 2: Dynamic Menu Pricing\nReduce prices on dishes with ingredients nearing expiration to incentivize orders before waste occurs.\n\n...",
+  parsedData: {
+    ideas: [
+      {
+        id: "model_0_idea_1",
+        title: "Smart Waste Bins",
+        description: "AI-powered bins that photograph discarded food and track waste patterns to identify the most wasted items."
+      },
+      {
+        id: "model_0_idea_2",
+        title: "Dynamic Menu Pricing",
+        description: "Reduce prices on dishes with ingredients nearing expiration to incentivize orders before waste occurs."
+      }
+    ],
+    ideaCount: 7
+  },
+  responseTimeMs: 8200,
+  createdAt: "2026-02-09T..."
+}
+```
+
+**Clustering row (curator):**
+```typescript
+{
+  id: "uuid",
+  messageId: "msg-uuid",
+  stageType: "clustering",
+  stageOrder: 10,
+  model: "anthropic/claude-opus-4-6",
+  role: "curator",
+  content: "CLUSTER 1: Technology-Driven Monitoring\nTheme: Using sensors, AI, and data analytics to track and predict food waste patterns.\nPromise: HIGH\nIdeas: model_0_idea_1, model_1_idea_3, model_2_idea_5\n\nCLUSTER 2: Economic Incentive Redesign\nTheme: Aligning financial incentives for restaurants, staff, and customers to minimize waste.\nPromise: HIGH\nIdeas: model_0_idea_2, model_1_idea_1, model_2_idea_2, model_3_idea_4\n\n...\n\nCLUSTERING SUMMARY:\nTotal clusters: 5\nIdeas clustered: 26 / 28\nUnclustered ideas: model_1_idea_7, model_3_idea_6",
+  parsedData: {
+    clusters: [
+      {
+        id: "cluster_1",
+        name: "Technology-Driven Monitoring",
+        theme: "Using sensors, AI, and data analytics to track and predict food waste patterns.",
+        promise: "HIGH",
+        ideaIds: ["model_0_idea_1", "model_1_idea_3", "model_2_idea_5"]
+      },
+      {
+        id: "cluster_2",
+        name: "Economic Incentive Redesign",
+        theme: "Aligning financial incentives for restaurants, staff, and customers to minimize waste.",
+        promise: "HIGH",
+        ideaIds: ["model_0_idea_2", "model_1_idea_1", "model_2_idea_2", "model_3_idea_4"]
+      }
+    ],
+    totalClusters: 5,
+    unclusteredCount: 2,
+    unclusteredIds: ["model_1_idea_7", "model_3_idea_6"]
+  },
+  responseTimeMs: 12400,
+  createdAt: "2026-02-09T..."
+}
+```
+
+**Scoring row (one per scorer):**
+```typescript
+{
+  id: "uuid",
+  messageId: "msg-uuid",
+  stageType: "scoring_0",
+  stageOrder: 20,
+  model: "openai/o3",
+  role: "scorer",
+  content: "SCORES:\nCluster 1: Novelty=3 Feasibility=4 Impact=5\nJustification: Standard IoT approach but strong execution path and high waste reduction potential.\nCluster 2: Novelty=4 Feasibility=3 Impact=4\nJustification: Creative pricing models, moderate implementation difficulty, good impact on behavior.\n...",
+  parsedData: {
+    scores: [
+      {
+        clusterId: "cluster_1",
+        novelty: 3,
+        feasibility: 4,
+        impact: 5,
+        total: 12
+      },
+      {
+        clusterId: "cluster_2",
+        novelty: 4,
+        feasibility: 3,
+        impact: 4,
+        total: 11
+      }
+    ]
+  },
+  responseTimeMs: 6800,
+  createdAt: "2026-02-09T..."
+}
+```
+
+**Refinement row (refiner):**
+```typescript
+{
+  id: "uuid",
+  messageId: "msg-uuid",
+  stageType: "refinement",
+  stageOrder: 99,
+  model: "openai/o3",
+  role: "refiner",
+  content: "## Proposal: Technology-Driven Monitoring\n\n### Executive Summary\nA comprehensive waste-tracking ecosystem combining AI-powered smart bins, predictive analytics, and real-time dashboards...\n\n### Core Concept\n...\n\n### Implementation Approach\n...\n\n### Advantages\n1. Data-driven decision making reduces guesswork...\n\n### Risks & Mitigations\n| Risk | Impact | Mitigation |\n|------|--------|------------|\n| High upfront sensor cost | Medium | Phased rollout starting with highest-waste stations |\n...\n\n### Next Steps\n1. Pilot program with 3 partner restaurants...\n\n### Alternative Ideas from This Cluster\n- Waste composition cameras could also feed a supplier feedback loop...",
+  parsedData: {
+    winningClusterId: "cluster_1",
+    winningClusterName: "Technology-Driven Monitoring",
+    winningScore: 12.3,
+    wordCount: 1450,
+    tiedClusters: false
+  },
+  responseTimeMs: 15600,
+  createdAt: "2026-02-09T..."
+}
+```
+
+### Indexes
+
+The shared index from `00-shared-infrastructure.md` applies:
+```sql
+CREATE INDEX idx_deliberation_stages_message ON deliberation_stages(message_id, stage_order);
+```
+
+### Querying Pattern
+
+To reconstruct a complete Brainstorm result from the database:
+
+```typescript
+async function loadBrainstormResult(messageId: string): Promise<BrainstormResult> {
+  const stages = await db
+    .select()
+    .from(deliberationStages)
+    .where(eq(deliberationStages.messageId, messageId))
+    .orderBy(deliberationStages.stageOrder, deliberationStages.createdAt);
+
+  const ideationStages = stages.filter((s) => s.stageType.startsWith("ideation_"));
+  const clusteringStage = stages.find((s) => s.stageType === "clustering");
+  const scoringStages = stages.filter((s) => s.stageType.startsWith("scoring_"));
+  const refinementStage = stages.find((s) => s.stageType === "refinement");
+
+  // Reconstruct all ideas from ideation stages
+  const allIdeas: BrainstormIdea[] = ideationStages.flatMap(
+    (s) => s.parsedData.ideas
+  );
+
+  // Reconstruct clusters with resolved ideas
+  const clusters = clusteringStage?.parsedData.clusters.map((c: any) => ({
+    ...c,
+    ideas: c.ideaIds
+      .map((id: string) => allIdeas.find((idea) => idea.id === id))
+      .filter(Boolean),
+  })) ?? [];
+
+  // Aggregate scoring
+  const scorerResults = scoringStages.map((s) => ({
+    model: s.model!,
+    scores: s.parsedData.scores,
+    responseTimeMs: s.responseTimeMs!,
+  }));
+
+  const rankedClusters = aggregateClusterScores(
+    clusters,
+    new Map(scorerResults.map((s) => [s.model, s.scores]))
+  );
+
+  return {
+    ideation: ideationStages.map((s) => ({
+      model: s.model!,
+      ideas: s.parsedData.ideas,
+      responseTimeMs: s.responseTimeMs!,
+    })),
+    totalIdeas: allIdeas.length,
+    clustering: {
+      model: clusteringStage?.model ?? "unknown",
+      clusters: rankedClusters,
+      unclusteredIdeas: allIdeas.filter(
+        (idea) => !clusters.some((c: any) => c.ideaIds.includes(idea.id))
+      ),
+      responseTimeMs: clusteringStage?.responseTimeMs ?? 0,
+    },
+    scoring: {
+      scorers: scorerResults,
+      rankedClusters,
+    },
+    refinement: {
+      model: refinementStage?.model ?? "unknown",
+      winningCluster: rankedClusters[0],
+      proposal: refinementStage?.content ?? "",
+      responseTimeMs: refinementStage?.responseTimeMs ?? 0,
+    },
+  };
+}
+```

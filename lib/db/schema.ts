@@ -87,6 +87,7 @@ export const conversations = pgTable("conversations", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull().default("New Council"),
+  mode: text("mode").notNull().default("council"),
   modelPresetId: text("model_preset_id"),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
@@ -155,6 +156,31 @@ export const stage3Synthesis = pgTable("stage3_synthesis", {
   response: text("response").notNull(),
   responseTimeMs: integer("response_time_ms"),
 });
+
+// ---------------------------------------------------------------------------
+// Deliberation Stages — Generic storage for all non-Council modes
+// ---------------------------------------------------------------------------
+
+export const deliberationStages = pgTable("deliberation_stages", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  messageId: text("message_id")
+    .notNull()
+    .references(() => messages.id, { onDelete: "cascade" }),
+  stageType: text("stage_type").notNull(),
+  stageOrder: integer("stage_order").notNull(),
+  model: text("model"),
+  role: text("role"),
+  content: text("content").notNull(),
+  parsedData: jsonb("parsed_data"),
+  responseTimeMs: integer("response_time_ms"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// Model Presets
+// ---------------------------------------------------------------------------
 
 export const modelPresets = pgTable("model_presets", {
   id: text("id")

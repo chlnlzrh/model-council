@@ -1,12 +1,14 @@
 /**
- * SSE streaming endpoint for the 3-stage council pipeline.
+ * SSE streaming endpoint for the multi-mode deliberation pipeline.
  *
  * POST /api/council/stream
  *
- * Accepts: { question, conversationId?, councilModels?, chairmanModel? }
+ * Accepts: { question, mode?, conversationId?, councilModels?, chairmanModel?, modeConfig? }
  *
- * Supports multi-turn: when conversationId is provided, loads conversation
- * history and includes it as context for Stage 1 and Stage 3.
+ * The `mode` field (default: "council") determines which orchestrator pipeline runs.
+ * Council mode retains full backward compatibility.
+ *
+ * Supports multi-turn for modes that declare supportsMultiTurn: true.
  */
 
 import { NextRequest } from "next/server";
@@ -22,8 +24,10 @@ import type {
   CouncilConfig,
   SSEEvent,
   ConversationTurn,
+  DeliberationMode,
 } from "@/lib/council/types";
 import { DEFAULT_COUNCIL_CONFIG } from "@/lib/council/types";
+import { getModeDefinition, isValidMode } from "@/lib/council/modes";
 import {
   createConversation,
   createMessage,
@@ -34,13 +38,16 @@ import {
   saveStage2LabelMapEntries,
   saveStage3Synthesis,
   updateConversationTitle,
+  getConversationMode,
 } from "@/lib/db/queries";
 
 const RequestSchema = z.object({
   question: z.string().min(1, "Question is required"),
+  mode: z.string().default("council"),
   conversationId: z.string().optional(),
   councilModels: z.array(z.string()).optional(),
   chairmanModel: z.string().optional(),
+  modeConfig: z.record(z.string(), z.unknown()).optional(),
 });
 
 function sseEncode(event: SSEEvent): string {
@@ -92,8 +99,49 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { question, conversationId, councilModels, chairmanModel } =
-    parsed.data;
+  const {
+    question,
+    mode: modeStr,
+    conversationId,
+    councilModels,
+    chairmanModel,
+    modeConfig,
+  } = parsed.data;
+
+  // Validate mode
+  if (!isValidMode(modeStr)) {
+    return new Response(
+      JSON.stringify({ error: `Unknown mode: ${modeStr}` }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  const mode = modeStr as DeliberationMode;
+
+  // If continuing a conversation, verify mode matches
+  if (conversationId) {
+    const existingMode = await getConversationMode(conversationId);
+    if (existingMode && existingMode !== mode) {
+      return new Response(
+        JSON.stringify({
+          error: `Conversation uses "${existingMode}" mode, but request specified "${mode}".`,
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+
+  // Non-council modes are not yet implemented — return 501
+  if (mode !== "council") {
+    const modeDef = getModeDefinition(mode);
+    return new Response(
+      JSON.stringify({
+        error: `Mode "${modeDef?.name ?? mode}" is not yet implemented. Coming soon.`,
+      }),
+      { status: 501, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // --- Council mode (existing implementation) ---
 
   const config: CouncilConfig = {
     councilModels: councilModels ?? DEFAULT_COUNCIL_CONFIG.councilModels,
@@ -112,6 +160,7 @@ export async function POST(request: NextRequest) {
         if (!convId) {
           const conv = await createConversation({
             userId: session.user!.id!,
+            mode,
           });
           convId = conv.id;
           isNewConversation = true;
