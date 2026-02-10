@@ -8,9 +8,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Current Phase** | Multi-Mode Specs Complete — Ready for Multi-Mode Implementation |
-| **Current Task** | Step 2: Shared Infrastructure for Multi-Mode Support |
-| **Overall Completion** | 55% (Phases 1-4.5 done, multi-mode specs written, implementation next) |
+| **Current Phase** | Multi-Mode Implementation (12 of 15 modes complete) |
+| **Current Task** | Step 2: Implement remaining 3 modes (Decompose, Brainstorm, Fact-Check) |
+| **Overall Completion** | 85% (Phases 1-4.5 done, 12/15 modes implemented) |
 | **Last Updated** | 2026-02-09 |
 | **Production URL** | https://model-council-pink.vercel.app |
 
@@ -28,7 +28,7 @@
 | Phase 4.3: Multi-Turn Conversations | **COMPLETE** | 100% |
 | Phase 4.5: Markdown Export | **COMPLETE** | 100% |
 | Multi-Mode Specs | **COMPLETE** | 100% |
-| Multi-Mode Implementation | Not Started | 0% |
+| Multi-Mode Implementation | **IN PROGRESS** | 80% (12/15 modes) |
 | Phase 5: Polish + Testing | Not Started | 0% |
 
 ---
@@ -68,15 +68,15 @@ Each spec contains: Requirements, Pipeline Design (with full prompt templates), 
 
 | # | Task | File(s) | Description | Status |
 |---|------|---------|-------------|--------|
-| 1.1 | Add `mode` column to conversations | `lib/db/schema.ts` | `mode: text("mode").notNull().default("council")` — values from `DeliberationMode` union | Not Started |
-| 1.2 | Create `deliberation_stages` table | `lib/db/schema.ts` | New table: id, messageId, stageType, stageOrder, model, role, content, parsedData (JSONB), responseTimeMs, createdAt | Not Started |
-| 1.3 | Generate + push migration | `lib/db/migrations/` | `npm run db:generate && npm run db:push` | Not Started |
-| 1.4 | Add DB query helpers | `lib/db/queries.ts` | `saveDeliberationStage()`, `loadDeliberationStages()`, `getConversationMode()` | Not Started |
-| 1.5 | Extend types | `lib/council/types.ts` | `DeliberationMode` union, `BaseModeConfig`, `ModeDefinition`, shared interfaces per spec | Not Started |
-| 1.6 | Mode registry | `lib/council/modes/index.ts` | `MODE_REGISTRY` map, mode dispatcher function, shared validation | Not Started |
-| 1.7 | Extend SSE endpoint | `app/api/council/stream/route.ts` | Accept `mode` field in request, dispatch to mode-specific handler | Not Started |
+| 1.1 | Add `mode` column to conversations | `lib/db/schema.ts` | `mode: text("mode").notNull().default("council")` — values from `DeliberationMode` union | **DONE** |
+| 1.2 | Create `deliberation_stages` table | `lib/db/schema.ts` | New table: id, messageId, stageType, stageOrder, model, role, content, parsedData (JSONB), responseTimeMs, createdAt | **DONE** |
+| 1.3 | Generate + push migration | `lib/db/migrations/` | `npm run db:generate && npm run db:push` | **DONE** |
+| 1.4 | Add DB query helpers | `lib/db/queries.ts` | `saveDeliberationStage()`, `loadDeliberationStages()`, `getConversationMode()` | **DONE** |
+| 1.5 | Extend types | `lib/council/types.ts` | `DeliberationMode` union, `BaseModeConfig`, `ModeDefinition`, shared interfaces per spec | **DONE** |
+| 1.6 | Mode registry | `lib/council/modes/index.ts` | `MODE_REGISTRY` map, mode dispatcher function, shared validation | **DONE** |
+| 1.7 | Extend SSE endpoint | `app/api/council/stream/route.ts` | Accept `mode` field in request, dispatch to mode-specific handler | **DONE** |
 | 1.8 | Generic client hook | `hooks/use-deliberation-stream.ts` | Mode-aware SSE consumer with mode-specific state reducers | Not Started |
-| 1.9 | Tests | `__tests__/shared-infrastructure.test.ts` | Mode registry, type validation, dispatcher routing | Not Started |
+| 1.9 | Tests | `__tests__/shared-infrastructure.test.ts` | Mode registry, type validation, dispatcher routing | **DONE** |
 
 ### Step 2: Implement Modes (Priority Order)
 
@@ -84,20 +84,20 @@ Each mode = orchestrator + prompts + parser in a single file under `lib/council/
 
 | Priority | Mode | File | Complexity | Est. LOC | Dependencies | Status |
 |----------|------|------|-----------|---------|-------------|--------|
-| 1 | **Vote** | `modes/vote.ts` | Low | ~400 | Shared infra, `createLabelMap` | Not Started |
-| 2 | **Chain** | `modes/chain.ts` | Low-Med | ~500 | Shared infra | Not Started |
-| 3 | **Specialist Panel** | `modes/specialist-panel.ts` | Medium | ~700 | Shared infra | Not Started |
-| 4 | **Jury** | `modes/jury.ts` | Medium | ~600 | Shared infra | Not Started |
-| 5 | **Red Team** | `modes/red-team.ts` | Medium | ~700 | Shared infra | Not Started |
-| 6 | **Blueprint** | `modes/blueprint.ts` | Med-High | ~800 | Shared infra | Not Started |
-| 7 | **Peer Review** | `modes/peer-review.ts` | Medium | ~700 | Shared infra | Not Started |
-| 8 | **Debate** | `modes/debate.ts` | High | ~800 | Shared infra, `createLabelMap` | Not Started |
-| 9 | **Tournament** | `modes/tournament.ts` | Medium | ~700 | Shared infra | Not Started |
-| 10 | **Confidence-Weighted** | `modes/confidence-weighted.ts` | Medium | ~600 | Shared infra | Not Started |
+| 1 | **Vote** | `modes/vote.ts` | Low | ~400 | Shared infra, `createLabelMap` | **DONE** (622 LOC, 30 tests) |
+| 2 | **Chain** | `modes/chain.ts` | Low-Med | ~500 | Shared infra | **DONE** (43 tests) |
+| 3 | **Specialist Panel** | `modes/specialist-panel.ts` | Medium | ~700 | Shared infra | **DONE** (37 tests) |
+| 4 | **Jury** | `modes/jury.ts` | Medium | ~600 | Shared infra | **DONE** (53 tests) |
+| 5 | **Red Team** | `modes/red-team.ts` | Medium | ~700 | Shared infra | **DONE** (66 tests) |
+| 6 | **Blueprint** | `modes/blueprint.ts` | Med-High | ~800 | Shared infra | **DONE** (52 tests) |
+| 7 | **Peer Review** | `modes/peer-review.ts` | Medium | ~700 | Shared infra | **DONE** (64 tests) |
+| 8 | **Debate** | `modes/debate.ts` | High | ~800 | Shared infra, `createLabelMap` | **DONE** (34 tests) |
+| 9 | **Tournament** | `modes/tournament.ts` | Medium | ~700 | Shared infra | **DONE** (63 tests) |
+| 10 | **Confidence-Weighted** | `modes/confidence-weighted.ts` | Medium | ~430 | Shared infra | **DONE** (65 tests) |
 | 11 | **Decompose** | `modes/decompose.ts` | High | ~900 | Shared infra | Not Started |
 | 12 | **Brainstorm** | `modes/brainstorm.ts` | Med-High | ~800 | Shared infra | Not Started |
 | 13 | **Fact-Check** | `modes/fact-check.ts` | High | ~900 | Shared infra | Not Started |
-| 14 | **Delphi** | `modes/delphi.ts` | Very High | ~1200 | Shared infra | Not Started |
+| 14 | **Delphi** | `modes/delphi.ts` | Very High | ~1200 | Shared infra | **DONE** (67 tests) |
 
 **Total estimated: ~9,800 LOC** across 14 mode files + shared infra.
 
@@ -120,7 +120,7 @@ Each mode = orchestrator + prompts + parser in a single file under `lib/council/
 
 ---
 
-## Existing Test Suite
+## Test Suite
 
 | File | Tests | Status |
 |------|------:|--------|
@@ -128,7 +128,19 @@ Each mode = orchestrator + prompts + parser in a single file under `lib/council/
 | `__tests__/prompts.test.ts` | 11 | Passing |
 | `__tests__/orchestrator.test.ts` | 13 | Passing |
 | `__tests__/analytics-compute.test.ts` | 20 | Passing |
-| **Total** | **62** | **All passing** |
+| `__tests__/shared-infrastructure.test.ts` | 25 | Passing |
+| `__tests__/vote-mode.test.ts` | 30 | Passing |
+| `__tests__/chain-mode.test.ts` | 43 | Passing |
+| `__tests__/specialist-panel-mode.test.ts` | 37 | Passing |
+| `__tests__/jury-mode.test.ts` | 53 | Passing |
+| `__tests__/debate-mode.test.ts` | 34 | Passing |
+| `__tests__/delphi-mode.test.ts` | 67 | Passing |
+| `__tests__/red-team-mode.test.ts` | 66 | Passing |
+| `__tests__/blueprint-mode.test.ts` | 52 | Passing |
+| `__tests__/peer-review-mode.test.ts` | 64 | Passing |
+| `__tests__/tournament-mode.test.ts` | 63 | Passing |
+| `__tests__/confidence-weighted-mode.test.ts` | 65 | Passing |
+| **Total** | **661** | **All passing** |
 
 ---
 
@@ -179,9 +191,8 @@ Each mode = orchestrator + prompts + parser in a single file under `lib/council/
 
 ## Next Steps
 
-1. **Implement Step 1: Shared Infrastructure** — DB migration, type extensions, mode registry, dispatcher, generic hook
-2. **Implement Step 2: Vote mode** — Simplest delta from Council, validates the abstraction layer
-3. Continue through priority order (Chain → Specialist Panel → Jury → Red Team → ...)
-
-See `docs/modes/00-shared-infrastructure.md` for full shared infrastructure spec.
-See individual `docs/modes/NN-*.md` files for per-mode implementation specs.
+1. **Implement Decompose mode** (`modes/decompose.ts`) — Sequential/Algorithmic, ~900 LOC. See `docs/modes/13-decompose.md`.
+2. **Implement Brainstorm mode** (`modes/brainstorm.ts`) — Creative, ~800 LOC. See `docs/modes/14-brainstorm.md`.
+3. **Implement Fact-Check mode** (`modes/fact-check.ts`) — Verification, ~900 LOC. See `docs/modes/15-fact-check.md`.
+4. **Step 3: UI** — Mode selector, mode-specific config panels, mode-specific result views.
+5. **Phase 5: Polish** — 80% test coverage, WCAG AA, Lighthouse >90, responsive audit.
