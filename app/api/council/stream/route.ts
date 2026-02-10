@@ -28,15 +28,20 @@ import type {
 } from "@/lib/council/types";
 import { DEFAULT_COUNCIL_CONFIG } from "@/lib/council/types";
 import { getModeDefinition, isValidMode } from "@/lib/council/modes";
+import { handleVoteStream } from "@/lib/council/modes/vote";
+import type { VoteConfig } from "@/lib/council/modes/vote";
+import { DEFAULT_VOTE_CONFIG } from "@/lib/council/modes/vote";
 import {
   createConversation,
   createMessage,
   getMessagesByConversation,
   getStage3ByMessage,
+  getDeliberationStagesByMessage,
   saveStage1Responses,
   saveStage2Rankings,
   saveStage2LabelMapEntries,
   saveStage3Synthesis,
+  saveDeliberationStages,
   updateConversationTitle,
   getConversationMode,
 } from "@/lib/db/queries";
@@ -57,10 +62,13 @@ function sseEncode(event: SSEEvent): string {
 /**
  * Build conversation history from existing messages.
  * For each user message, include its content.
- * For each assistant message, include the Stage 3 synthesis (the final answer).
+ * For each assistant message, include the final answer:
+ * - Council mode: Stage 3 synthesis
+ * - Vote mode: winner's original response from deliberation_stages
  */
 async function loadConversationHistory(
-  conversationId: string
+  conversationId: string,
+  mode: DeliberationMode = "council"
 ): Promise<ConversationTurn[]> {
   const messages = await getMessagesByConversation(conversationId);
   const history: ConversationTurn[] = [];
@@ -69,10 +77,21 @@ async function loadConversationHistory(
     if (msg.role === "user") {
       history.push({ role: "user", content: msg.content });
     } else if (msg.role === "assistant") {
-      // Load the Stage 3 synthesis for this assistant message
-      const synthesis = await getStage3ByMessage(msg.id);
-      if (synthesis) {
-        history.push({ role: "assistant", content: synthesis.response });
+      if (mode === "council") {
+        const synthesis = await getStage3ByMessage(msg.id);
+        if (synthesis) {
+          history.push({ role: "assistant", content: synthesis.response });
+        }
+      } else {
+        // Non-council modes: look for "winner" stage in deliberation_stages
+        const stages = await getDeliberationStagesByMessage(msg.id);
+        const winnerStage = stages.find((s) => s.stageType === "winner");
+        if (winnerStage) {
+          history.push({ role: "assistant", content: winnerStage.content });
+        } else if (stages.length > 0) {
+          // Fallback: use last stage's content
+          history.push({ role: "assistant", content: stages[stages.length - 1].content });
+        }
       }
     }
   }
@@ -130,8 +149,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Non-council modes are not yet implemented — return 501
-  if (mode !== "council") {
+  // Modes that are not yet implemented — return 501
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote"];
+  if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
       JSON.stringify({
@@ -141,18 +161,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // --- Council mode (existing implementation) ---
-
-  const config: CouncilConfig = {
-    councilModels: councilModels ?? DEFAULT_COUNCIL_CONFIG.councilModels,
-    chairmanModel: chairmanModel ?? DEFAULT_COUNCIL_CONFIG.chairmanModel,
-    timeoutMs: DEFAULT_COUNCIL_CONFIG.timeoutMs,
-  };
-
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(controller) {
+      const emit = (event: SSEEvent) => {
+        controller.enqueue(encoder.encode(sseEncode(event)));
+      };
+
       try {
         // Create or use existing conversation
         let convId = conversationId;
@@ -169,7 +185,7 @@ export async function POST(request: NextRequest) {
         // Load conversation history for multi-turn context
         const history = isNewConversation
           ? []
-          : await loadConversationHistory(convId);
+          : await loadConversationHistory(convId, mode);
 
         // Save user message
         await createMessage({
@@ -185,102 +201,108 @@ export async function POST(request: NextRequest) {
           content: "",
         });
 
-        // Send conversation metadata
-        controller.enqueue(
-          encoder.encode(
-            sseEncode({
-              type: "stage1_start",
-              data: { conversationId: convId, messageId: assistantMsg.id },
-            })
-          )
-        );
+        // --- Dispatch by mode ---
+        if (mode === "vote") {
+          const voteConfig: VoteConfig = {
+            councilModels: councilModels ?? DEFAULT_VOTE_CONFIG.councilModels,
+            chairmanModel: chairmanModel ?? DEFAULT_VOTE_CONFIG.chairmanModel,
+            timeoutMs: DEFAULT_VOTE_CONFIG.timeoutMs,
+          };
 
-        // --- Stage 1: Collect responses (with history for multi-turn) ---
-        const stage1Results = await stage1Collect(question, config, history);
+          const stages = await handleVoteStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: voteConfig,
+            history,
+          });
 
-        await saveStage1Responses(assistantMsg.id, stage1Results);
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
 
-        controller.enqueue(
-          encoder.encode(
-            sseEncode({ type: "stage1_complete", data: stage1Results })
-          )
-        );
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
 
-        if (stage1Results.length === 0) {
-          controller.enqueue(
-            encoder.encode(
-              sseEncode({
-                type: "error",
-                message: "All models failed to respond. Please try again.",
-              })
-            )
+          // Complete
+          emit({ type: "complete" });
+        } else {
+          // --- Council mode (existing implementation) ---
+          const config: CouncilConfig = {
+            councilModels: councilModels ?? DEFAULT_COUNCIL_CONFIG.councilModels,
+            chairmanModel: chairmanModel ?? DEFAULT_COUNCIL_CONFIG.chairmanModel,
+            timeoutMs: DEFAULT_COUNCIL_CONFIG.timeoutMs,
+          };
+
+          emit({
+            type: "stage1_start",
+            data: { conversationId: convId, messageId: assistantMsg.id },
+          });
+
+          // --- Stage 1: Collect responses (with history for multi-turn) ---
+          const stage1Results = await stage1Collect(question, config, history);
+
+          await saveStage1Responses(assistantMsg.id, stage1Results);
+
+          emit({ type: "stage1_complete", data: stage1Results });
+
+          if (stage1Results.length === 0) {
+            emit({
+              type: "error",
+              message: "All models failed to respond. Please try again.",
+            });
+            controller.close();
+            return;
+          }
+
+          // --- Stage 2: Rank responses (no history — ranking is context-free) ---
+          emit({ type: "stage2_start" });
+
+          const { rankings: stage2Results, metadata: stage2Metadata } =
+            await stage2Rank(question, stage1Results, config);
+
+          await Promise.all([
+            saveStage2Rankings(assistantMsg.id, stage2Results),
+            saveStage2LabelMapEntries(
+              assistantMsg.id,
+              stage2Metadata.labelToModel
+            ),
+          ]);
+
+          emit({
+            type: "stage2_complete",
+            data: stage2Results,
+            metadata: stage2Metadata,
+          });
+
+          // --- Stage 3: Synthesize (with history for multi-turn) ---
+          emit({ type: "stage3_start" });
+
+          const stage3Result = await stage3Synthesize(
+            question,
+            stage1Results,
+            stage2Results,
+            config,
+            history
           );
-          controller.close();
-          return;
+
+          await saveStage3Synthesis(assistantMsg.id, stage3Result);
+
+          emit({ type: "stage3_complete", data: stage3Result });
+
+          // --- Title generation (only for new conversations) ---
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // --- Complete ---
+          emit({ type: "complete" });
         }
-
-        // --- Stage 2: Rank responses (no history — ranking is context-free) ---
-        controller.enqueue(
-          encoder.encode(sseEncode({ type: "stage2_start" }))
-        );
-
-        const { rankings: stage2Results, metadata: stage2Metadata } =
-          await stage2Rank(question, stage1Results, config);
-
-        await Promise.all([
-          saveStage2Rankings(assistantMsg.id, stage2Results),
-          saveStage2LabelMapEntries(
-            assistantMsg.id,
-            stage2Metadata.labelToModel
-          ),
-        ]);
-
-        controller.enqueue(
-          encoder.encode(
-            sseEncode({
-              type: "stage2_complete",
-              data: stage2Results,
-              metadata: stage2Metadata,
-            })
-          )
-        );
-
-        // --- Stage 3: Synthesize (with history for multi-turn) ---
-        controller.enqueue(
-          encoder.encode(sseEncode({ type: "stage3_start" }))
-        );
-
-        const stage3Result = await stage3Synthesize(
-          question,
-          stage1Results,
-          stage2Results,
-          config,
-          history
-        );
-
-        await saveStage3Synthesis(assistantMsg.id, stage3Result);
-
-        controller.enqueue(
-          encoder.encode(
-            sseEncode({ type: "stage3_complete", data: stage3Result })
-          )
-        );
-
-        // --- Title generation (only for new conversations) ---
-        if (isNewConversation) {
-          const title = await generateTitle(question);
-          await updateConversationTitle(convId, title);
-          controller.enqueue(
-            encoder.encode(
-              sseEncode({ type: "title_complete", data: { title } })
-            )
-          );
-        }
-
-        // --- Complete ---
-        controller.enqueue(
-          encoder.encode(sseEncode({ type: "complete" }))
-        );
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unknown error";
