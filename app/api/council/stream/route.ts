@@ -37,6 +37,9 @@ import { DEFAULT_CHAIN_CONFIG } from "@/lib/council/modes/chain";
 import { handleSpecialistPanelStream } from "@/lib/council/modes/specialist-panel";
 import type { PanelConfig, SpecialistAssignment } from "@/lib/council/modes/specialist-panel";
 import { DEFAULT_PANEL_CONFIG } from "@/lib/council/modes/specialist-panel";
+import { handleJuryStream } from "@/lib/council/modes/jury";
+import type { JuryConfig } from "@/lib/council/modes/jury";
+import { DEFAULT_JURY_CONFIG } from "@/lib/council/modes/jury";
 import {
   createConversation,
   createMessage,
@@ -156,7 +159,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -292,6 +295,66 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: panelConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "jury") {
+          // --- Jury mode ---
+          const jurorModels =
+            (modeConfig?.jurorModels as string[] | undefined) ??
+            DEFAULT_JURY_CONFIG.jurorModels;
+          const foremanModel =
+            (modeConfig?.foremanModel as string | undefined) ??
+            DEFAULT_JURY_CONFIG.foremanModel;
+          const juryTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_JURY_CONFIG.timeoutMs;
+          const juryContent = modeConfig?.content as string | undefined;
+          const originalQuestion = modeConfig?.originalQuestion as string | undefined;
+
+          // Content to evaluate is required
+          if (!juryContent) {
+            emit({
+              type: "error",
+              message: "Jury mode requires modeConfig.content (the content to evaluate).",
+            });
+            controller.close();
+            return;
+          }
+
+          // Foreman must not be in juror list
+          if (jurorModels.includes(foremanModel)) {
+            emit({
+              type: "error",
+              message: "Foreman model must not be one of the juror models.",
+            });
+            controller.close();
+            return;
+          }
+
+          const juryConfig: JuryConfig = {
+            jurorModels,
+            foremanModel,
+            timeoutMs: juryTimeoutMs,
+          };
+
+          const stages = await handleJuryStream(controller, encoder, emit, {
+            content: juryContent,
+            originalQuestion,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: juryConfig,
           });
 
           // Persist deliberation stages
