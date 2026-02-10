@@ -34,6 +34,9 @@ import { DEFAULT_VOTE_CONFIG } from "@/lib/council/modes/vote";
 import { handleChainStream } from "@/lib/council/modes/chain";
 import type { ChainConfig, ChainStepConfig } from "@/lib/council/modes/chain";
 import { DEFAULT_CHAIN_CONFIG } from "@/lib/council/modes/chain";
+import { handleSpecialistPanelStream } from "@/lib/council/modes/specialist-panel";
+import type { PanelConfig, SpecialistAssignment } from "@/lib/council/modes/specialist-panel";
+import { DEFAULT_PANEL_CONFIG } from "@/lib/council/modes/specialist-panel";
 import {
   createConversation,
   createMessage,
@@ -153,7 +156,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -252,6 +255,43 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: chainConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "specialist_panel") {
+          // --- Specialist Panel mode ---
+          const specialists: SpecialistAssignment[] =
+            (modeConfig?.specialists as SpecialistAssignment[] | undefined) ??
+            DEFAULT_PANEL_CONFIG.specialists;
+          const synthesizerModel =
+            (modeConfig?.synthesizerModel as string | undefined) ??
+            DEFAULT_PANEL_CONFIG.synthesizerModel;
+          const panelTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_PANEL_CONFIG.timeoutMs;
+
+          const panelConfig: PanelConfig = {
+            specialists,
+            synthesizerModel,
+            timeoutMs: panelTimeoutMs,
+          };
+
+          const stages = await handleSpecialistPanelStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: panelConfig,
           });
 
           // Persist deliberation stages
