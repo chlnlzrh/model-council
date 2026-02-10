@@ -17,6 +17,8 @@ import {
   stage3Synthesis,
   modelPresets,
   deliberationStages,
+  usageLogs,
+  feedback,
 } from "./schema";
 import type {
   Stage1Response,
@@ -629,4 +631,111 @@ export async function getDeliberationResponseTimesForUser(
         ? and(eq(conversations.userId, userId), gte(messages.createdAt, fromDate))
         : eq(conversations.userId, userId)
     );
+}
+
+// ---------------------------------------------------------------------------
+// Usage Logs — Rate limiting + tracking
+// ---------------------------------------------------------------------------
+
+export async function createUsageLog(data: {
+  userId: string;
+  mode: string;
+  modelsUsed: number;
+  conversationId?: string;
+}) {
+  const [log] = await db
+    .insert(usageLogs)
+    .values({
+      userId: data.userId,
+      mode: data.mode,
+      modelsUsed: data.modelsUsed,
+      conversationId: data.conversationId ?? null,
+      status: "started",
+    })
+    .returning();
+  return log;
+}
+
+export async function updateUsageLogStatus(
+  id: string,
+  status: "completed" | "failed"
+) {
+  await db
+    .update(usageLogs)
+    .set({ status })
+    .where(eq(usageLogs.id, id));
+}
+
+export async function getUserUsageSummary(userId: string) {
+  const now = new Date();
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const [hourResult, dayResult, allTimeResult] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(usageLogs)
+      .where(and(eq(usageLogs.userId, userId), gte(usageLogs.createdAt, oneHourAgo))),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(usageLogs)
+      .where(and(eq(usageLogs.userId, userId), gte(usageLogs.createdAt, oneDayAgo))),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(usageLogs)
+      .where(eq(usageLogs.userId, userId)),
+  ]);
+
+  return {
+    usedThisHour: hourResult[0]?.count ?? 0,
+    usedToday: dayResult[0]?.count ?? 0,
+    usedAllTime: allTimeResult[0]?.count ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Feedback — Bug reports, feature requests
+// ---------------------------------------------------------------------------
+
+export async function createFeedback(data: {
+  userId: string;
+  type: string;
+  title: string;
+  description: string;
+  context?: string;
+}) {
+  const [row] = await db
+    .insert(feedback)
+    .values({
+      userId: data.userId,
+      type: data.type as "bug" | "feature" | "other",
+      title: data.title,
+      description: data.description,
+      context: data.context ?? null,
+    })
+    .returning();
+  return row;
+}
+
+export async function getUserFeedback(userId: string) {
+  return db
+    .select()
+    .from(feedback)
+    .where(eq(feedback.userId, userId))
+    .orderBy(desc(feedback.createdAt));
+}
+
+export async function getFeedbackById(id: string) {
+  const [row] = await db
+    .select()
+    .from(feedback)
+    .where(eq(feedback.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function deleteFeedback(id: string, userId: string) {
+  await db
+    .delete(feedback)
+    .where(and(eq(feedback.id, id), eq(feedback.userId, userId)));
 }

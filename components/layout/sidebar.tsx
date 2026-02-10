@@ -3,11 +3,12 @@
 import { useTheme } from "next-themes";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Moon, Sun, Plus, MessageSquare, Settings, BarChart3, LogOut } from "lucide-react";
+import { Moon, Sun, Plus, MessageSquare, Settings, BarChart3, MessageCircleQuestion, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getModeDefinition } from "@/lib/council/modes/index";
+import { UsageBadge } from "@/components/council/usage-badge";
 
 interface SidebarProps {
   conversations: { id: string; title: string; mode?: string }[];
@@ -29,7 +30,10 @@ export function Sidebar({
     <div className="flex h-full w-[260px] flex-col border-r border-border bg-muted/30">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <span className="text-xs font-bold">Model Council</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold">Model Council</span>
+          <UsageBadge />
+        </div>
         <Button variant="secondary" size="sm" className="h-7 text-xs" onClick={onNew}>
           <Plus className="mr-1 h-3 w-3" />
           New
@@ -97,6 +101,19 @@ export function Sidebar({
         >
           <BarChart3 className="h-3 w-3" />
           Analytics
+        </Link>
+        <Link
+          href="/feedback"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            pathname === "/feedback"
+              ? "bg-accent text-accent-foreground font-medium"
+              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+          )}
+        >
+          <MessageCircleQuestion className="h-3 w-3" />
+          Feedback
         </Link>
       </nav>
 

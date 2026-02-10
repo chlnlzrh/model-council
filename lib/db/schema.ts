@@ -195,3 +195,51 @@ export const modelPresets = pgTable("model_presets", {
   isDefault: boolean("is_default").default(false).notNull(),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
+
+// ---------------------------------------------------------------------------
+// Usage Logs — Rate limiting + usage tracking
+// ---------------------------------------------------------------------------
+
+export const usageLogs = pgTable("usage_logs", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  mode: text("mode").notNull(),
+  modelsUsed: integer("models_used").notNull().default(1),
+  conversationId: text("conversation_id"),
+  status: text("status", {
+    enum: ["started", "completed", "failed"],
+  })
+    .notNull()
+    .default("started"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// Feedback — Bug reports, feature requests, general feedback
+// ---------------------------------------------------------------------------
+
+export const feedback = pgTable("feedback", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  type: text("type", {
+    enum: ["bug", "feature", "other"],
+  }).notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  context: text("context"),
+  status: text("feedback_status", {
+    enum: ["open", "acknowledged", "in_progress", "resolved", "closed"],
+  })
+    .notNull()
+    .default("open"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+});

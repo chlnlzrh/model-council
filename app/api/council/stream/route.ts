@@ -83,7 +83,10 @@ import {
   saveDeliberationStages,
   updateConversationTitle,
   getConversationMode,
+  createUsageLog,
+  updateUsageLogStatus,
 } from "@/lib/db/queries";
+import { checkRateLimit } from "@/lib/rate-limit/check";
 
 const RequestSchema = z.object({
   question: z.string().min(1, "Question is required"),
@@ -147,6 +150,31 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // --- Rate limit check ---
+  const rateLimitResult = await checkRateLimit(session.user.id);
+  if (!rateLimitResult.allowed) {
+    const messages: Record<string, string> = {
+      perMinute: `Rate limit exceeded: ${rateLimitResult.current}/${rateLimitResult.limit} requests this minute. Please wait before trying again.`,
+      perHour: `Hourly limit reached: ${rateLimitResult.current}/${rateLimitResult.limit} requests this hour. Please slow down.`,
+      perDay: `Daily limit reached: ${rateLimitResult.current}/${rateLimitResult.limit} requests today. Try again tomorrow.`,
+      maxConcurrent: `You already have ${rateLimitResult.current} deliberation(s) running. Please wait for one to finish.`,
+    };
+    return new Response(
+      JSON.stringify({
+        error: messages[rateLimitResult.limitType!] ?? "Rate limit exceeded",
+        limitType: rateLimitResult.limitType,
+        retryAfterSeconds: rateLimitResult.retryAfterSeconds,
+      }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(rateLimitResult.retryAfterSeconds ?? 60),
+        },
+      }
+    );
+  }
+
   const body = await request.json();
   const parsed = RequestSchema.safeParse(body);
 
@@ -208,6 +236,8 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(sseEncode(event)));
       };
 
+      let usageLogId: string | null = null;
+
       try {
         // Create or use existing conversation
         let convId = conversationId;
@@ -220,6 +250,16 @@ export async function POST(request: NextRequest) {
           convId = conv.id;
           isNewConversation = true;
         }
+
+        // Log usage for rate limiting
+        const modelsUsed = councilModels?.length ?? 3;
+        const usageLog = await createUsageLog({
+          userId: session.user!.id!,
+          mode,
+          modelsUsed,
+          conversationId: convId,
+        });
+        usageLogId = usageLog.id;
 
         // Load conversation history for multi-turn context
         const history = isNewConversation
@@ -1112,7 +1152,19 @@ export async function POST(request: NextRequest) {
           // --- Complete ---
           emit({ type: "complete" });
         }
+        // Mark usage log as completed
+        if (usageLogId) {
+          await updateUsageLogStatus(usageLogId, "completed");
+        }
       } catch (error) {
+        // Mark usage log as failed
+        if (usageLogId) {
+          try {
+            await updateUsageLogStatus(usageLogId, "failed");
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
         const message =
           error instanceof Error ? error.message : "Unknown error";
         controller.enqueue(

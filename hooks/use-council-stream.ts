@@ -98,6 +98,12 @@ export function useCouncilStream() {
         });
 
         if (!response.ok) {
+          if (response.status === 429) {
+            const errorData = await response.json().catch(() => null);
+            const rateLimitMsg =
+              errorData?.error ?? "Rate limit exceeded. Please wait before trying again.";
+            throw new Error(rateLimitMsg);
+          }
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 

@@ -27,10 +27,13 @@ export const config = {
     "/council/:path*",
     "/settings/:path*",
     "/analytics/:path*",
+    "/feedback/:path*",
     "/api/conversations/:path*",
     "/api/council/:path*",
     "/api/models/:path*",
     "/api/presets/:path*",
     "/api/analytics/:path*",
+    "/api/usage/:path*",
+    "/api/feedback/:path*",
   ],
 };
