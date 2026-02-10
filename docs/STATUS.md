@@ -8,9 +8,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Current Phase** | Multi-Mode Implementation (12 of 15 modes complete) |
-| **Current Task** | Step 2: Implement remaining 3 modes (Decompose, Brainstorm, Fact-Check) |
-| **Overall Completion** | 85% (Phases 1-4.5 done, 12/15 modes implemented) |
+| **Current Phase** | Multi-Mode Analytics Dashboard complete |
+| **Current Task** | Step 3: Mode selection UI + mode-specific result views |
+| **Overall Completion** | 92% (Phases 1-4.5 done, 15/15 modes, multi-mode analytics) |
 | **Last Updated** | 2026-02-09 |
 | **Production URL** | https://model-council-pink.vercel.app |
 
@@ -28,7 +28,8 @@
 | Phase 4.3: Multi-Turn Conversations | **COMPLETE** | 100% |
 | Phase 4.5: Markdown Export | **COMPLETE** | 100% |
 | Multi-Mode Specs | **COMPLETE** | 100% |
-| Multi-Mode Implementation | **IN PROGRESS** | 80% (12/15 modes) |
+| Multi-Mode Implementation | **COMPLETE** | 100% (15/15 modes) |
+| Multi-Mode Analytics Dashboard | **COMPLETE** | 100% (3-tab layout) |
 | Phase 5: Polish + Testing | Not Started | 0% |
 
 ---
@@ -94,9 +95,9 @@ Each mode = orchestrator + prompts + parser in a single file under `lib/council/
 | 8 | **Debate** | `modes/debate.ts` | High | ~800 | Shared infra, `createLabelMap` | **DONE** (34 tests) |
 | 9 | **Tournament** | `modes/tournament.ts` | Medium | ~700 | Shared infra | **DONE** (63 tests) |
 | 10 | **Confidence-Weighted** | `modes/confidence-weighted.ts` | Medium | ~430 | Shared infra | **DONE** (65 tests) |
-| 11 | **Decompose** | `modes/decompose.ts` | High | ~900 | Shared infra | Not Started |
-| 12 | **Brainstorm** | `modes/brainstorm.ts` | Med-High | ~800 | Shared infra | Not Started |
-| 13 | **Fact-Check** | `modes/fact-check.ts` | High | ~900 | Shared infra | Not Started |
+| 11 | **Decompose** | `modes/decompose.ts` | High | ~900 | Shared infra | **DONE** (86 tests) |
+| 12 | **Brainstorm** | `modes/brainstorm.ts` | Med-High | ~800 | Shared infra | **DONE** (91 tests) |
+| 13 | **Fact-Check** | `modes/fact-check.ts` | High | ~900 | Shared infra | **DONE** (99 tests) |
 | 14 | **Delphi** | `modes/delphi.ts` | Very High | ~1200 | Shared infra | **DONE** (67 tests) |
 
 **Total estimated: ~9,800 LOC** across 14 mode files + shared infra.
@@ -127,7 +128,8 @@ Each mode = orchestrator + prompts + parser in a single file under `lib/council/
 | `__tests__/ranking-parser.test.ts` | 18 | Passing |
 | `__tests__/prompts.test.ts` | 11 | Passing |
 | `__tests__/orchestrator.test.ts` | 13 | Passing |
-| `__tests__/analytics-compute.test.ts` | 20 | Passing |
+| `__tests__/analytics-compute.test.ts` | 29 | Passing |
+| `__tests__/analytics-mode-compute.test.ts` | 21 | Passing |
 | `__tests__/shared-infrastructure.test.ts` | 25 | Passing |
 | `__tests__/vote-mode.test.ts` | 30 | Passing |
 | `__tests__/chain-mode.test.ts` | 43 | Passing |
@@ -140,7 +142,51 @@ Each mode = orchestrator + prompts + parser in a single file under `lib/council/
 | `__tests__/peer-review-mode.test.ts` | 64 | Passing |
 | `__tests__/tournament-mode.test.ts` | 63 | Passing |
 | `__tests__/confidence-weighted-mode.test.ts` | 65 | Passing |
-| **Total** | **661** | **All passing** |
+| `__tests__/decompose-mode.test.ts` | 86 | Passing |
+| `__tests__/brainstorm-mode.test.ts` | 91 | Passing |
+| `__tests__/fact-check-mode.test.ts` | 99 | Passing |
+| **Total** | **967** | **All passing** |
+
+---
+
+## Multi-Mode Analytics Dashboard
+
+Upgraded from Council-only (4 stat cards, 2 bar charts) to a full 3-tab analytics dashboard.
+
+### Tab 1: Overview
+- 6 stat cards (Sessions, Queries, Avg Response, Top Model, Modes Used, Most Active Mode)
+- Daily usage area chart (Recharts `AreaChart` with gradient fill)
+- Mode distribution donut chart (Recharts `PieChart`)
+- Win rate + response time bar charts (existing, preserved)
+
+### Tab 2: Mode Deep Dive
+- Horizontal scrollable pill selector for all 15 modes, grouped by family
+- Per-mode metrics computed from `deliberation_stages.parsedData` JSONB
+- 9 mode-specific chart components grouped by family:
+  - Competitive (Council, Vote, Debate, Tournament) — winner distribution bar charts
+  - Scoring (Jury, Peer Review) — verdict/severity donuts, dimension score bars
+  - Convergence (Delphi, Confidence-Weighted) — confidence histograms
+  - Sequential (Chain, Blueprint, Decompose) — word count progression line chart
+  - Creative (Brainstorm) — idea count + cluster score bars
+  - Adversarial (Red Team) — severity distribution + defense accept rate
+  - Verification (Fact-Check) — claim type/verdict donuts + agreement rate
+  - Specialist (Specialist Panel) — role distribution chart
+
+### Tab 3: Model Comparison
+- Cross-mode leaderboard table (sessions, avg response time, composite score)
+- Response time heatmap (CSS grid: models x modes, green→yellow→red gradient)
+
+### Data Layer
+- `lib/analytics/types.ts` — 15 mode-specific metric interfaces (discriminated union), extended summary/data types
+- `lib/analytics/compute.ts` — `computeModeDistribution`, `computeExtendedSummary`, `computeCrossModeResponseTimes`
+- `lib/analytics/mode-compute.ts` — 14 pure mode-specific compute functions + `computeMetricsForMode` dispatcher
+- `lib/db/queries.ts` — 3 new queries: `getModeDistributionForUser`, `getDeliberationStagesForAnalytics`, `getDeliberationResponseTimesForUser`
+- `app/api/analytics/route.ts` — `view` + `mode` query params (backward-compatible legacy response preserved)
+- `hooks/use-analytics.ts` — `useOverviewAnalytics`, `useModeAnalytics` hooks
+
+### Files (27 changed)
+- 17 new files (mode-compute, 11 chart components, 2 model comparison components, mode-selector, mode-metrics-panel, test file)
+- 10 modified files (types, queries, compute, API route, hooks, 4 existing components, existing test)
 
 ---
 
@@ -191,8 +237,8 @@ Each mode = orchestrator + prompts + parser in a single file under `lib/council/
 
 ## Next Steps
 
-1. **Implement Decompose mode** (`modes/decompose.ts`) — Sequential/Algorithmic, ~900 LOC. See `docs/modes/13-decompose.md`.
-2. **Implement Brainstorm mode** (`modes/brainstorm.ts`) — Creative, ~800 LOC. See `docs/modes/14-brainstorm.md`.
-3. **Implement Fact-Check mode** (`modes/fact-check.ts`) — Verification, ~900 LOC. See `docs/modes/15-fact-check.md`.
-4. **Step 3: UI** — Mode selector, mode-specific config panels, mode-specific result views.
+1. **Step 3: Mode Selection UI** — Mode selector on council page, mode-specific config panels.
+2. **Step 3: Mode-Specific Result Views** — Custom stage panels per mode (bracket viz for Tournament, DAG for Decompose, etc.).
+3. **Conversation list mode badges** — Show which mode was used for each conversation.
+4. **Generic deliberation stream hook** — `hooks/use-deliberation-stream.ts` with mode-aware SSE consumer.
 5. **Phase 5: Polish** — 80% test coverage, WCAG AA, Lighthouse >90, responsive audit.
