@@ -52,6 +52,9 @@ import { DEFAULT_RED_TEAM_CONFIG } from "@/lib/council/modes/red-team";
 import { handleBlueprintStream } from "@/lib/council/modes/blueprint";
 import type { BlueprintConfig, DocumentType } from "@/lib/council/modes/blueprint";
 import { DEFAULT_BLUEPRINT_CONFIG } from "@/lib/council/modes/blueprint";
+import { handlePeerReviewStream } from "@/lib/council/modes/peer-review";
+import type { PeerReviewConfig, ReviewType } from "@/lib/council/modes/peer-review";
+import { DEFAULT_PEER_REVIEW_CONFIG } from "@/lib/council/modes/peer-review";
 import {
   createConversation,
   createMessage,
@@ -171,7 +174,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -601,6 +604,79 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: blueprintConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "peer_review") {
+          // --- Peer Review mode ---
+          const reviewType =
+            (modeConfig?.reviewType as ReviewType | undefined) ??
+            DEFAULT_PEER_REVIEW_CONFIG.reviewType;
+          const reviewerModels =
+            (modeConfig?.reviewerModels as string[] | undefined) ??
+            DEFAULT_PEER_REVIEW_CONFIG.reviewerModels;
+          const consolidatorModel =
+            (modeConfig?.consolidatorModel as string | undefined) ??
+            DEFAULT_PEER_REVIEW_CONFIG.consolidatorModel;
+          const customRubric = modeConfig?.customRubric as PeerReviewConfig["customRubric"] | undefined;
+          const peerReviewTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_PEER_REVIEW_CONFIG.timeoutMs;
+
+          // Validate reviewer count (2-6)
+          if (reviewerModels.length < 2 || reviewerModels.length > 6) {
+            emit({
+              type: "error",
+              message: "Peer Review requires 2-6 reviewer models.",
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate custom rubric requirement
+          if (reviewType === "custom" && !customRubric) {
+            emit({
+              type: "error",
+              message: "customRubric is required when reviewType is 'custom'.",
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate work length
+          if (question.length > 200_000) {
+            emit({
+              type: "error",
+              message: "Work under review must be under 200,000 characters.",
+            });
+            controller.close();
+            return;
+          }
+
+          const peerReviewConfig: PeerReviewConfig = {
+            reviewType,
+            reviewerModels,
+            consolidatorModel,
+            customRubric,
+            timeoutMs: peerReviewTimeoutMs,
+          };
+
+          const stages = await handlePeerReviewStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: peerReviewConfig,
           });
 
           // Persist deliberation stages
