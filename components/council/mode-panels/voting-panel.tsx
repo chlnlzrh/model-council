@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelColor, getModelDisplayName } from "@/lib/council/model-colors";
+import { CollapsibleContent } from "./collapsible-content";
+import { CopyButton } from "./copy-button";
 import type { ModePanelProps } from "./types";
 import { Trophy } from "lucide-react";
 
@@ -74,8 +76,10 @@ export function VotingPanel({ mode, stages, isLoading, currentStage }: ModePanel
         <TabsContent value="responses" className="mt-0">
           {hasResponses ? (
             <ResponseList responses={Array.isArray(responses) ? responses : []} />
+          ) : isLoading ? (
+            <VotingSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No responses yet.</p>
           )}
         </TabsContent>
 
@@ -83,8 +87,10 @@ export function VotingPanel({ mode, stages, isLoading, currentStage }: ModePanel
           <TabsContent value="revisions" className="mt-0">
             {revisions ? (
               <RevisionList revisions={Array.isArray(revisions) ? revisions : [revisions]} />
+            ) : isLoading ? (
+              <VotingSkeleton />
             ) : (
-              <PanelSkeleton />
+              <p className="py-4 text-xs text-muted-foreground">No revisions yet.</p>
             )}
           </TabsContent>
         )}
@@ -92,16 +98,20 @@ export function VotingPanel({ mode, stages, isLoading, currentStage }: ModePanel
         <TabsContent value="votes" className="mt-0">
           {voteData ? (
             <VoteTally tallies={voteData.tallies ?? {}} isTie={voteData.isTie} />
+          ) : isLoading ? (
+            <VotingSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No votes yet.</p>
           )}
         </TabsContent>
 
         <TabsContent value="winner" className="mt-0">
           {winner ? (
             <WinnerCard winner={winner} />
+          ) : isLoading ? (
+            <VotingSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No winner declared yet.</p>
           )}
         </TabsContent>
       </div>
@@ -146,9 +156,7 @@ function ResponseList({
         })}
       </div>
       {active && (
-        <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-          <ReactMarkdown>{active.response}</ReactMarkdown>
-        </div>
+        <CollapsibleContent content={active.response} copyable />
       )}
     </div>
   );
@@ -178,9 +186,7 @@ function RevisionList({
               </span>
             </div>
             {r.revisedResponse != null && (
-              <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                <ReactMarkdown>{r.revisedResponse}</ReactMarkdown>
-              </div>
+              <CollapsibleContent content={r.revisedResponse} copyable />
             )}
           </div>
         );
@@ -229,7 +235,7 @@ function VoteTally({ tallies, isTie }: { tallies: Record<string, number>; isTie?
 
 function WinnerCard({ winner }: { winner: { winnerModel?: string; winnerResponse?: string; voteCount?: number; totalVotes?: number } }) {
   return (
-    <div className="space-y-3">
+    <div className="group space-y-3">
       <div className="flex items-center gap-2">
         <Trophy className="h-4 w-4 text-amber-500" />
         <span className="text-xs font-semibold">
@@ -242,9 +248,7 @@ function WinnerCard({ winner }: { winner: { winnerModel?: string; winnerResponse
         )}
       </div>
       {winner.winnerResponse != null && (
-        <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-          <ReactMarkdown>{winner.winnerResponse}</ReactMarkdown>
-        </div>
+        <CollapsibleContent content={winner.winnerResponse} copyable />
       )}
     </div>
   );
@@ -263,13 +267,20 @@ function StageIndicator({ done, loading }: { done: boolean; loading: boolean }) 
   );
 }
 
-function PanelSkeleton() {
+function VotingSkeleton() {
   return (
-    <div className="space-y-2">
-      <Skeleton className="h-3 w-[90%]" />
-      <Skeleton className="h-3 w-[75%]" />
-      <Skeleton className="h-3 w-[85%]" />
-      <Skeleton className="h-3 w-[60%]" />
+    <div className="space-y-3">
+      <div className="flex gap-1.5">
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-7 w-28 rounded-full" />
+        ))}
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-[90%]" />
+        <Skeleton className="h-3 w-[75%]" />
+        <Skeleton className="h-3 w-[85%]" />
+        <Skeleton className="h-3 w-[60%]" />
+      </div>
     </div>
   );
 }

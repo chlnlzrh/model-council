@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelColor, getModelDisplayName } from "@/lib/council/model-colors";
+import { CollapsibleContent } from "./collapsible-content";
 import type { ModePanelProps } from "./types";
 import { AlertTriangle, Shield, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -27,6 +28,8 @@ function DelphiView({ stages, isLoading }: { stages: Record<string, unknown>; is
   const estimateRounds = normalizeArray(stages["estimates_complete"]);
   const synthesis = stages["synthesis_complete"] as Record<string, unknown> | undefined;
   const converged = !!stages["convergence_reached"];
+
+  const hasContent = classification != null || estimateRounds.length > 0;
 
   return (
     <div className="space-y-4 p-4">
@@ -69,17 +72,21 @@ function DelphiView({ stages, isLoading }: { stages: Record<string, unknown>; is
 
       {/* Synthesis */}
       {synthesis != null && (
-        <div className="rounded-lg border border-border p-3 space-y-2">
+        <div className="group rounded-lg border border-border p-3 space-y-2">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Final Synthesis
           </div>
-          <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-            <ReactMarkdown>{String(synthesis.report ?? synthesis.finalValue ?? "")}</ReactMarkdown>
-          </div>
+          <CollapsibleContent
+            content={String(synthesis.report ?? synthesis.finalValue ?? "")}
+            copyable
+          />
         </div>
       )}
 
-      {isLoading && estimateRounds.length === 0 && <PanelSkeleton />}
+      {isLoading && !hasContent && <RoundsSkeleton />}
+      {!isLoading && !hasContent && (
+        <p className="py-4 text-xs text-muted-foreground">No rounds completed.</p>
+      )}
     </div>
   );
 }
@@ -91,18 +98,20 @@ function RedTeamView({ stages, isLoading }: { stages: Record<string, unknown>; i
   const synthesis = stages["synthesize_complete"] as Record<string, unknown> | undefined;
 
   const maxRounds = Math.max(attacks.length, defenses.length);
+  const hasContent = generated != null || maxRounds > 0;
 
   return (
     <div className="space-y-4 p-4">
       {/* Generated content */}
       {generated != null && (
-        <div className="rounded-lg border border-border p-3">
+        <div className="group rounded-lg border border-border p-3">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
             Generated Content
           </div>
-          <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-            <ReactMarkdown>{String(generated.structuredContent ?? generated.response ?? "")}</ReactMarkdown>
-          </div>
+          <CollapsibleContent
+            content={String(generated.structuredContent ?? generated.response ?? "")}
+            copyable
+          />
         </div>
       )}
 
@@ -120,18 +129,22 @@ function RedTeamView({ stages, isLoading }: { stages: Record<string, unknown>; i
 
       {/* Hardened output */}
       {synthesis != null && (
-        <div className="rounded-lg border border-emerald-300 dark:border-emerald-700 p-3 space-y-2">
+        <div className="group rounded-lg border border-emerald-300 dark:border-emerald-700 p-3 space-y-2">
           <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
             <Shield className="h-3 w-3" />
             Hardened Output
           </div>
-          <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-            <ReactMarkdown>{String(synthesis.hardenedOutput ?? synthesis.response ?? "")}</ReactMarkdown>
-          </div>
+          <CollapsibleContent
+            content={String(synthesis.hardenedOutput ?? synthesis.response ?? "")}
+            copyable
+          />
         </div>
       )}
 
-      {isLoading && !generated && <PanelSkeleton />}
+      {isLoading && !hasContent && <RoundsSkeleton />}
+      {!isLoading && !hasContent && (
+        <p className="py-4 text-xs text-muted-foreground">No rounds completed.</p>
+      )}
     </div>
   );
 }
@@ -144,9 +157,11 @@ function RoundCard({ roundNumber, data }: { roundNumber: number; data: Record<st
     <div className="relative pl-7">
       <div className="absolute left-1.5 top-2.5 h-3 w-3 rounded-full border-2 border-border bg-background z-10" />
       <div className="rounded-lg border border-border">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center justify-between px-3 py-2 text-left"
+          aria-expanded={expanded}
+          className="flex w-full items-center justify-between px-3 py-2 text-left h-auto font-normal hover:bg-transparent"
         >
           <span className="text-xs font-medium">Round {roundNumber}</span>
           <div className="flex items-center gap-2">
@@ -158,7 +173,7 @@ function RoundCard({ roundNumber, data }: { roundNumber: number; data: Record<st
             )}
             {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </div>
-        </button>
+        </Button>
         {expanded && (
           <div className="border-t px-3 py-2">
             <div className="space-y-1.5">
@@ -194,9 +209,11 @@ function AttackDefenseRound({
 
   return (
     <div className="rounded-lg border border-border">
-      <button
+      <Button
+        variant="ghost"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between px-3 py-2 text-left"
+        aria-expanded={expanded}
+        className="flex w-full items-center justify-between px-3 py-2 text-left h-auto font-normal hover:bg-transparent"
       >
         <span className="text-xs font-medium">Round {roundNumber}</span>
         <div className="flex items-center gap-2">
@@ -210,7 +227,7 @@ function AttackDefenseRound({
           )}
           {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </div>
-      </button>
+      </Button>
       {expanded && (
         <div className="border-t">
           {attack && (
@@ -222,9 +239,7 @@ function AttackDefenseRound({
                   <span className="text-[10px] text-muted-foreground">{getModelDisplayName(String(attack.model))}</span>
                 )}
               </div>
-              <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                <ReactMarkdown>{formatFindings(attack.findings)}</ReactMarkdown>
-              </div>
+              <CollapsibleContent content={formatFindings(attack.findings)} />
             </div>
           )}
           {defense && (
@@ -282,12 +297,20 @@ function normalizeArray(raw: unknown): Array<Record<string, unknown>> {
   return [];
 }
 
-function PanelSkeleton() {
+function RoundsSkeleton() {
   return (
-    <div className="space-y-2 p-4">
-      <Skeleton className="h-3 w-[90%]" />
-      <Skeleton className="h-3 w-[75%]" />
-      <Skeleton className="h-3 w-[85%]" />
+    <div className="relative space-y-3">
+      <div className="absolute left-3 top-3 bottom-3 w-px bg-border" />
+      {[1, 2].map((i) => (
+        <div key={i} className="relative pl-7">
+          <div className="absolute left-1.5 top-2.5 h-3 w-3 rounded-full border-2 border-border bg-background z-10" />
+          <div className="rounded-lg border border-border p-3 space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-[80%]" />
+            <Skeleton className="h-3 w-[60%]" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

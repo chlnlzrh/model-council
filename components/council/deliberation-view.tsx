@@ -16,7 +16,9 @@ import { Stage2Panel } from "./stage2-panel";
 import { Stage3Panel } from "./stage3-panel";
 import { ChatInput } from "./chat-input";
 import { ModePicker } from "./mode-picker";
-import { Download } from "lucide-react";
+import { Download, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CopyButton } from "./mode-panels/copy-button";
 
 interface HistoryMessage {
   role: "user" | "assistant";
@@ -441,14 +443,16 @@ function ModePickerWrapper({
 
 function ExportButton({ onClick }: { onClick: () => void }) {
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="sm"
       onClick={onClick}
-      className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      className="h-7 gap-1 text-[11px] text-muted-foreground"
       title="Export as Markdown"
     >
       <Download className="h-3.5 w-3.5" />
       Export
-    </button>
+    </Button>
   );
 }
 
@@ -456,7 +460,7 @@ function EmptyState({ mode }: { mode: DeliberationMode }) {
   const def = getModeDefinition(mode);
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="text-3xl opacity-20 mb-3">&#9878;</div>
+      <MessageSquare className="h-8 w-8 text-muted-foreground/20 mb-3" />
       <h2 className="text-sm font-semibold text-foreground">
         {def ? `Ask the ${def.name}` : "Ask a Question"}
       </h2>
@@ -486,9 +490,12 @@ function MessageBubble({ message }: { message: HistoryMessage }) {
     );
   }
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
+    <div className="group rounded-xl border border-border bg-card p-3">
       <div className="prose prose-sm dark:prose-invert max-w-none text-xs">
         <ReactMarkdown>{message.content}</ReactMarkdown>
+      </div>
+      <div className="mt-1">
+        <CopyButton text={message.content} />
       </div>
     </div>
   );

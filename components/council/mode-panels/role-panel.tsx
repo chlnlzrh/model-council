@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelColor, getModelDisplayName } from "@/lib/council/model-colors";
+import { CollapsibleContent } from "./collapsible-content";
 import type { ModePanelProps } from "./types";
 
 /**
@@ -42,18 +43,20 @@ export function RolePanel({ mode, stages, isLoading }: ModePanelProps) {
         <TabsContent value="contributions" className="mt-0">
           {hasContributions ? (
             <ContributionList contributions={contributions} mode={mode} />
+          ) : isLoading ? (
+            <RoleSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No reports yet.</p>
           )}
         </TabsContent>
 
         <TabsContent value="synthesis" className="mt-0">
           {hasSynthesis ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-              <ReactMarkdown>{synthesis}</ReactMarkdown>
-            </div>
+            <CollapsibleContent content={synthesis} copyable />
+          ) : isLoading ? (
+            <RoleSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No synthesis yet.</p>
           )}
         </TabsContent>
       </div>
@@ -157,9 +160,11 @@ function ContributionList({ contributions, mode }: { contributions: Contribution
         const isExpanded = expandedIdx === i;
         return (
           <div key={`${c.model}-${i}`} className={cn("rounded-lg border", color.border)}>
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setExpandedIdx(isExpanded ? null : i)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left"
+              aria-expanded={isExpanded}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left h-auto justify-start font-normal hover:bg-transparent"
             >
               <span className={cn("h-2 w-2 rounded-full flex-shrink-0", color.dot)} />
               <span className="text-xs font-medium flex-1">
@@ -174,12 +179,10 @@ function ContributionList({ contributions, mode }: { contributions: Contribution
               {c.responseTimeMs !== undefined && (
                 <span className="text-[10px] text-muted-foreground">{(c.responseTimeMs / 1000).toFixed(1)}s</span>
               )}
-            </button>
+            </Button>
             {isExpanded && (
               <div className="border-t px-3 py-2">
-                <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                  <ReactMarkdown>{c.content}</ReactMarkdown>
-                </div>
+                <CollapsibleContent content={c.content} copyable />
               </div>
             )}
           </div>
@@ -202,12 +205,18 @@ function StageIndicator({ done, loading }: { done: boolean; loading: boolean }) 
   );
 }
 
-function PanelSkeleton() {
+function RoleSkeleton() {
   return (
     <div className="space-y-2">
-      <Skeleton className="h-3 w-[90%]" />
-      <Skeleton className="h-3 w-[75%]" />
-      <Skeleton className="h-3 w-[85%]" />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-lg border border-border p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-16 rounded-full" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-3 w-[85%]" />
+        </div>
+      ))}
     </div>
   );
 }

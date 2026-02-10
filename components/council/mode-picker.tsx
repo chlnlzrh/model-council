@@ -58,9 +58,11 @@ export function ModePicker({ selected, onSelect, disabled }: ModePickerProps) {
       <PopoverTrigger asChild>
         <button
           disabled={disabled}
+          aria-label="Select deliberation mode"
           className={cn(
             "flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px] transition-colors",
             "hover:bg-accent hover:text-accent-foreground",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
             disabled && "opacity-50 cursor-not-allowed"
           )}
         >
@@ -92,12 +94,14 @@ export function ModePicker({ selected, onSelect, disabled }: ModePickerProps) {
               {group.modes.map((mode) => (
                 <button
                   key={mode.id}
+                  role="option"
+                  aria-selected={selected === mode.id}
                   onClick={() => {
                     onSelect(mode.id);
                     setOpen(false);
                   }}
                   className={cn(
-                    "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+                    "flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs transition-colors",
                     selected === mode.id
                       ? "bg-accent text-accent-foreground font-medium"
                       : "text-foreground hover:bg-accent/50"

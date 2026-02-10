@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelColor, getModelDisplayName } from "@/lib/council/model-colors";
+import { CollapsibleContent } from "./collapsible-content";
 import type { ModePanelProps } from "./types";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
@@ -40,11 +41,14 @@ function ChainView({ stages, isLoading }: { stages: Record<string, unknown>; isL
           <div className="absolute left-3 top-3 bottom-3 w-px bg-border" />
         )}
         {steps.map((step, i) => (
-          <StepCard key={i} index={i} step={step} />
+          <StepCard key={i} index={i} step={step} isLast={i === steps.length - 1} />
         ))}
       </div>
 
-      {isLoading && steps.length === 0 && <PanelSkeleton />}
+      {isLoading && steps.length === 0 && <SequentialSkeleton />}
+      {!isLoading && steps.length === 0 && (
+        <p className="py-4 text-xs text-muted-foreground">No steps completed.</p>
+      )}
     </div>
   );
 }
@@ -54,6 +58,7 @@ function DecomposeView({ stages, isLoading }: { stages: Record<string, unknown>;
   const tasks = normalizeArray(stages["task_complete"]);
   const assembly = stages["assembly_complete"] as Record<string, unknown> | undefined;
   const taskCount = Number(plan?.taskCount ?? tasks.length);
+  const hasContent = plan != null || tasks.length > 0;
 
   return (
     <div className="space-y-3 p-4">
@@ -91,7 +96,7 @@ function DecomposeView({ stages, isLoading }: { stages: Record<string, unknown>;
 
       {/* Assembly */}
       {assembly != null && (
-        <div className="rounded-lg border border-emerald-300 dark:border-emerald-700 p-3 space-y-2">
+        <div className="group rounded-lg border border-emerald-300 dark:border-emerald-700 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
               Assembled Answer
@@ -100,18 +105,22 @@ function DecomposeView({ stages, isLoading }: { stages: Record<string, unknown>;
               <span className="text-[10px] text-muted-foreground">{String(assembly.wordCount)} words</span>
             )}
           </div>
-          <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-            <ReactMarkdown>{String(assembly.finalAnswer ?? assembly.response ?? "")}</ReactMarkdown>
-          </div>
+          <CollapsibleContent
+            content={String(assembly.finalAnswer ?? assembly.response ?? "")}
+            copyable
+          />
         </div>
       )}
 
-      {isLoading && !plan && <PanelSkeleton />}
+      {isLoading && !hasContent && <SequentialSkeleton />}
+      {!isLoading && !hasContent && (
+        <p className="py-4 text-xs text-muted-foreground">No steps completed.</p>
+      )}
     </div>
   );
 }
 
-function StepCard({ index, step }: { index: number; step: Record<string, unknown> }) {
+function StepCard({ index, step, isLast }: { index: number; step: Record<string, unknown>; isLast?: boolean }) {
   const [expanded, setExpanded] = useState(index === 0);
   const color = getModelColor(index);
   const data = (step.data as Record<string, unknown>) ?? step;
@@ -129,9 +138,11 @@ function StepCard({ index, step }: { index: number; step: Record<string, unknown
         {index + 1}
       </div>
       <div className="rounded-lg border border-border">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center justify-between px-3 py-2 text-left"
+          aria-expanded={expanded}
+          className="flex w-full items-center justify-between px-3 py-2 text-left h-auto font-normal hover:bg-transparent"
         >
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium">Step {index + 1}</span>
@@ -142,12 +153,10 @@ function StepCard({ index, step }: { index: number; step: Record<string, unknown
             {wordCount !== undefined && <span className="text-[10px] text-muted-foreground">{wordCount}w</span>}
             {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </div>
-        </button>
+        </Button>
         {expanded && content && (
           <div className="border-t px-3 py-2">
-            <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-              <ReactMarkdown>{content}</ReactMarkdown>
-            </div>
+            <CollapsibleContent content={content} copyable={isLast} />
           </div>
         )}
       </div>
@@ -170,18 +179,18 @@ function TaskCard({ index, task }: { index: number; task: Record<string, unknown
         {index + 1}
       </div>
       <div className="rounded-lg border border-border">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center justify-between px-3 py-2 text-left"
+          aria-expanded={expanded}
+          className="flex w-full items-center justify-between px-3 py-2 text-left h-auto font-normal hover:bg-transparent"
         >
           <span className="text-xs font-medium truncate">{title}</span>
           {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        </button>
+        </Button>
         {expanded && consensus && (
           <div className="border-t px-3 py-2">
-            <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-              <ReactMarkdown>{consensus}</ReactMarkdown>
-            </div>
+            <CollapsibleContent content={consensus} copyable />
           </div>
         )}
       </div>
@@ -200,12 +209,22 @@ function normalizeArray(raw: unknown): Array<Record<string, unknown>> {
   return [];
 }
 
-function PanelSkeleton() {
+function SequentialSkeleton() {
   return (
-    <div className="space-y-2">
-      <Skeleton className="h-3 w-[90%]" />
-      <Skeleton className="h-3 w-[75%]" />
-      <Skeleton className="h-3 w-[85%]" />
+    <div className="relative space-y-2">
+      <div className="absolute left-3 top-3 bottom-3 w-px bg-border" />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="relative pl-7">
+          <Skeleton className="absolute left-1.5 top-2.5 h-3 w-3 rounded-full" />
+          <div className="rounded-lg border border-border p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <Skeleton className="h-3 w-[75%]" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

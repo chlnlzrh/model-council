@@ -50,8 +50,10 @@ export function Sidebar({
           <button
             key={c.id}
             onClick={() => onSelect(c.id)}
+            aria-current={activeId === c.id ? "page" : undefined}
             className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+              "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               activeId === c.id
                 ? "bg-accent text-accent-foreground font-medium"
                 : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
@@ -73,7 +75,8 @@ export function Sidebar({
         <Link
           href="/settings"
           className={cn(
-            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+            "flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             pathname === "/settings"
               ? "bg-accent text-accent-foreground font-medium"
               : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
@@ -85,7 +88,8 @@ export function Sidebar({
         <Link
           href="/analytics"
           className={cn(
-            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+            "flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             pathname === "/analytics"
               ? "bg-accent text-accent-foreground font-medium"
               : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"

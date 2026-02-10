@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelColor, getModelDisplayName } from "@/lib/council/model-colors";
+import { CollapsibleContent } from "./collapsible-content";
 import type { ModePanelProps } from "./types";
 
 /**
@@ -48,20 +49,25 @@ export function BlueprintPanel({ stages, isLoading }: ModePanelProps) {
                   {String(outlineData.wordCount)} words
                 </div>
               )}
-              <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                <ReactMarkdown>{String(outlineData.outline ?? outlineData.content ?? "")}</ReactMarkdown>
-              </div>
+              <CollapsibleContent
+                content={String(outlineData.outline ?? outlineData.content ?? "")}
+                copyable
+              />
             </div>
+          ) : isLoading ? (
+            <BlueprintSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No content drafted.</p>
           )}
         </TabsContent>
 
         <TabsContent value="sections" className="mt-0">
           {hasSections ? (
             <SectionList sections={sections} />
+          ) : isLoading ? (
+            <BlueprintSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No sections authored.</p>
           )}
         </TabsContent>
 
@@ -73,14 +79,15 @@ export function BlueprintPanel({ stages, isLoading }: ModePanelProps) {
                   Total: {String(assemblyData.wordCount)} words
                 </div>
               )}
-              <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                <ReactMarkdown>
-                  {String(assemblyData.assembledDocument ?? assemblyData.content ?? assemblyData.response ?? "")}
-                </ReactMarkdown>
-              </div>
+              <CollapsibleContent
+                content={String(assemblyData.assembledDocument ?? assemblyData.content ?? assemblyData.response ?? "")}
+                copyable
+              />
             </div>
+          ) : isLoading ? (
+            <BlueprintSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No document assembled.</p>
           )}
         </TabsContent>
       </div>
@@ -104,9 +111,11 @@ function SectionList({ sections }: { sections: Array<Record<string, unknown>> })
 
         return (
           <div key={i} className={cn("rounded-lg border", color.border)}>
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setExpandedIdx(isExpanded ? null : i)}
-              className="flex w-full items-center justify-between px-3 py-2 text-left"
+              aria-expanded={isExpanded}
+              className="flex w-full items-center justify-between px-3 py-2 text-left h-auto font-normal hover:bg-transparent"
             >
               <div className="flex items-center gap-2">
                 <span className={cn(
@@ -125,12 +134,10 @@ function SectionList({ sections }: { sections: Array<Record<string, unknown>> })
                   <span className="text-[10px] text-muted-foreground">{wordCount}w</span>
                 )}
               </div>
-            </button>
+            </Button>
             {isExpanded && content && (
               <div className="border-t px-3 py-2">
-                <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                  <ReactMarkdown>{content}</ReactMarkdown>
-                </div>
+                <CollapsibleContent content={content} copyable />
               </div>
             )}
           </div>
@@ -164,12 +171,18 @@ function StageIndicator({ done, loading }: { done: boolean; loading: boolean }) 
   );
 }
 
-function PanelSkeleton() {
+function BlueprintSkeleton() {
   return (
     <div className="space-y-2">
-      <Skeleton className="h-3 w-[90%]" />
-      <Skeleton className="h-3 w-[75%]" />
-      <Skeleton className="h-3 w-[85%]" />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-lg border border-border p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+          <Skeleton className="h-3 w-[75%]" />
+        </div>
+      ))}
     </div>
   );
 }

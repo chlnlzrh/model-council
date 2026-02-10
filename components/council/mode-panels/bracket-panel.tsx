@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelColor, getModelDisplayName } from "@/lib/council/model-colors";
+import { CollapsibleContent } from "./collapsible-content";
 import type { ModePanelProps } from "./types";
 import { Trophy, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -24,6 +25,7 @@ export function BracketPanel({ stages, isLoading }: ModePanelProps) {
     roundMap.get(round)!.push(match);
   }
   const rounds = Array.from(roundMap.entries()).sort(([a], [b]) => a - b);
+  const hasContent = matchResults.length > 0 || champion != null;
 
   return (
     <div className="space-y-4 p-4">
@@ -59,7 +61,10 @@ export function BracketPanel({ stages, isLoading }: ModePanelProps) {
         </div>
       )}
 
-      {isLoading && matchResults.length === 0 && <PanelSkeleton />}
+      {isLoading && !hasContent && <BracketSkeleton />}
+      {!isLoading && !hasContent && (
+        <p className="py-4 text-xs text-muted-foreground">No matches played.</p>
+      )}
     </div>
   );
 }
@@ -78,9 +83,11 @@ function MatchCard({ match }: { match: Record<string, unknown> }) {
 
   return (
     <div className="rounded-lg border border-border">
-      <button
+      <Button
+        variant="ghost"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between px-3 py-2 text-left"
+        aria-expanded={expanded}
+        className="flex w-full items-center justify-between px-3 py-2 text-left h-auto font-normal hover:bg-transparent"
       >
         <div className="flex items-center gap-2">
           {matchNumber !== undefined && (
@@ -93,7 +100,7 @@ function MatchCard({ match }: { match: Record<string, unknown> }) {
           </div>
         </div>
         {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-      </button>
+      </Button>
       {expanded && (
         <div className="border-t divide-y divide-border">
           {c1 && c1.response != null && (
@@ -101,9 +108,7 @@ function MatchCard({ match }: { match: Record<string, unknown> }) {
               <div className="flex items-center gap-1.5 mb-1">
                 <ModelPill model={model1} isWinner={isWinner1} index={0} />
               </div>
-              <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                <ReactMarkdown>{String(c1.response)}</ReactMarkdown>
-              </div>
+              <CollapsibleContent content={String(c1.response)} copyable />
             </div>
           )}
           {c2 && c2.response != null && (
@@ -111,9 +116,7 @@ function MatchCard({ match }: { match: Record<string, unknown> }) {
               <div className="flex items-center gap-1.5 mb-1">
                 <ModelPill model={model2} isWinner={isWinner2} index={1} />
               </div>
-              <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                <ReactMarkdown>{String(c2.response)}</ReactMarkdown>
-              </div>
+              <CollapsibleContent content={String(c2.response)} copyable />
             </div>
           )}
         </div>
@@ -150,12 +153,18 @@ function normalizeArray(raw: unknown): Array<Record<string, unknown>> {
   return [];
 }
 
-function PanelSkeleton() {
+function BracketSkeleton() {
   return (
-    <div className="space-y-2">
-      <Skeleton className="h-3 w-[90%]" />
-      <Skeleton className="h-3 w-[75%]" />
-      <Skeleton className="h-3 w-[85%]" />
+    <div className="space-y-3">
+      {[1, 2].map((i) => (
+        <div key={i} className="rounded-lg border border-border p-3">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <span className="text-[10px] text-muted-foreground">vs</span>
+            <Skeleton className="h-6 w-24 rounded-full" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

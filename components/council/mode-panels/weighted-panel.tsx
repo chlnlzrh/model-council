@@ -1,10 +1,10 @@
 "use client";
 
-import ReactMarkdown from "react-markdown";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelColor, getModelDisplayName } from "@/lib/council/model-colors";
+import { CollapsibleContent } from "./collapsible-content";
 import type { ModePanelProps } from "./types";
 import { useState } from "react";
 
@@ -54,7 +54,7 @@ export function WeightedPanel({ stages, isLoading }: ModePanelProps) {
                   const reasoning = String(a.reasoning ?? "");
 
                   return (
-                    <div key={`${model}-${i}`} className={cn("rounded-lg border p-3", color.border)}>
+                    <div key={`${model}-${i}`} className={cn("group rounded-lg border p-3", color.border)}>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1.5">
                           <span className={cn("h-2 w-2 rounded-full", color.dot)} />
@@ -62,9 +62,7 @@ export function WeightedPanel({ stages, isLoading }: ModePanelProps) {
                         </div>
                         <ConfidenceBar confidence={confidence} />
                       </div>
-                      <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                        <ReactMarkdown>{answer}</ReactMarkdown>
-                      </div>
+                      <CollapsibleContent content={answer} copyable />
                       {reasoning && (
                         <div className="mt-2 text-[10px] text-muted-foreground italic">
                           {reasoning}
@@ -75,8 +73,10 @@ export function WeightedPanel({ stages, isLoading }: ModePanelProps) {
                 })}
               </div>
             </div>
+          ) : isLoading ? (
+            <WeightedSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No answers received.</p>
           )}
         </TabsContent>
 
@@ -92,12 +92,15 @@ export function WeightedPanel({ stages, isLoading }: ModePanelProps) {
                   ))}
                 </div>
               )}
-              <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                <ReactMarkdown>{String(synthesis.synthesizedAnswer ?? synthesis.response ?? "")}</ReactMarkdown>
-              </div>
+              <CollapsibleContent
+                content={String(synthesis.synthesizedAnswer ?? synthesis.response ?? "")}
+                copyable
+              />
             </div>
+          ) : isLoading ? (
+            <WeightedSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No synthesis yet.</p>
           )}
         </TabsContent>
       </div>
@@ -147,12 +150,22 @@ function StageIndicator({ done, loading }: { done: boolean; loading: boolean }) 
   );
 }
 
-function PanelSkeleton() {
+function WeightedSkeleton() {
   return (
     <div className="space-y-2">
-      <Skeleton className="h-3 w-[90%]" />
-      <Skeleton className="h-3 w-[75%]" />
-      <Skeleton className="h-3 w-[85%]" />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-lg border border-border p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="h-2 w-2 rounded-full" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <Skeleton className="h-1.5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-3 w-[85%]" />
+          <Skeleton className="h-3 w-[65%]" />
+        </div>
+      ))}
     </div>
   );
 }

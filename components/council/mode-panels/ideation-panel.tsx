@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelColor, getModelDisplayName } from "@/lib/council/model-colors";
+import { CollapsibleContent } from "./collapsible-content";
 import type { ModePanelProps } from "./types";
 import { Lightbulb } from "lucide-react";
 
@@ -70,8 +70,10 @@ export function IdeationPanel({ stages, isLoading }: ModePanelProps) {
                 })}
               </div>
             </div>
+          ) : isLoading ? (
+            <IdeationSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No ideas generated.</p>
           )}
         </TabsContent>
 
@@ -106,25 +108,28 @@ export function IdeationPanel({ stages, isLoading }: ModePanelProps) {
                 );
               })}
             </div>
+          ) : isLoading ? (
+            <IdeationSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No clusters formed.</p>
           )}
         </TabsContent>
 
         <TabsContent value="results" className="mt-0">
           {hasResults ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-              <ReactMarkdown>
-                {String(
-                  scoringData.refinedOutput ??
-                  scoringData.rankedIdeas ??
-                  scoringData.response ??
-                  JSON.stringify(scoringData.rankings ?? scoringData, null, 2)
-                )}
-              </ReactMarkdown>
-            </div>
+            <CollapsibleContent
+              content={String(
+                scoringData.refinedOutput ??
+                scoringData.rankedIdeas ??
+                scoringData.response ??
+                JSON.stringify(scoringData.rankings ?? scoringData, null, 2)
+              )}
+              copyable
+            />
+          ) : isLoading ? (
+            <IdeationSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No results yet.</p>
           )}
         </TabsContent>
       </div>
@@ -156,12 +161,16 @@ function StageIndicator({ done, loading }: { done: boolean; loading: boolean }) 
   );
 }
 
-function PanelSkeleton() {
+function IdeationSkeleton() {
   return (
-    <div className="space-y-2">
-      <Skeleton className="h-3 w-[90%]" />
-      <Skeleton className="h-3 w-[75%]" />
-      <Skeleton className="h-3 w-[85%]" />
+    <div className="grid gap-2 sm:grid-cols-2">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="rounded-lg border border-border p-2.5 space-y-1.5">
+          <Skeleton className="h-3 w-3 rounded" />
+          <Skeleton className="h-3 w-[80%]" />
+          <Skeleton className="h-3 w-[60%]" />
+        </div>
+      ))}
     </div>
   );
 }

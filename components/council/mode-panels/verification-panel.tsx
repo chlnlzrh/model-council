@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { CollapsibleContent } from "./collapsible-content";
 import type { ModePanelProps } from "./types";
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react";
 
@@ -64,18 +65,23 @@ export function VerificationPanel({ stages, isLoading }: ModePanelProps) {
                 ))}
               </div>
             </div>
+          ) : isLoading ? (
+            <VerificationSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No claims extracted.</p>
           )}
         </TabsContent>
 
         <TabsContent value="report" className="mt-0">
           {hasReport ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-              <ReactMarkdown>{String(reportData.report ?? reportData.response ?? "")}</ReactMarkdown>
-            </div>
+            <CollapsibleContent
+              content={String(reportData.report ?? reportData.response ?? "")}
+              copyable
+            />
+          ) : isLoading ? (
+            <VerificationSkeleton />
           ) : (
-            <PanelSkeleton />
+            <p className="py-4 text-xs text-muted-foreground">No report generated.</p>
           )}
         </TabsContent>
       </div>
@@ -92,9 +98,11 @@ function ClaimRow({ item, index }: { item: Record<string, unknown>; index: numbe
 
   return (
     <div className="rounded-lg border border-border">
-      <button
+      <Button
+        variant="ghost"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left h-auto font-normal hover:bg-transparent"
       >
         <VerdictBadge verdict={verdict} />
         <span className="text-xs flex-1 truncate">{claim}</span>
@@ -114,7 +122,7 @@ function ClaimRow({ item, index }: { item: Record<string, unknown>; index: numbe
             </span>
           </div>
         )}
-      </button>
+      </Button>
       {expanded && summary && (
         <div className="border-t px-3 py-2 text-xs text-muted-foreground leading-relaxed">
           {summary}
@@ -182,12 +190,16 @@ function StageIndicator({ done, loading }: { done: boolean; loading: boolean }) 
   );
 }
 
-function PanelSkeleton() {
+function VerificationSkeleton() {
   return (
     <div className="space-y-2">
-      <Skeleton className="h-3 w-[90%]" />
-      <Skeleton className="h-3 w-[75%]" />
-      <Skeleton className="h-3 w-[85%]" />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-lg border border-border p-3 flex items-center gap-2">
+          <Skeleton className="h-5 w-14 rounded-full" />
+          <Skeleton className="h-3 flex-1" />
+          <Skeleton className="h-1.5 w-12 rounded-full" />
+        </div>
+      ))}
     </div>
   );
 }
