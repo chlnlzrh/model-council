@@ -67,6 +67,9 @@ import { DEFAULT_DECOMPOSE_CONFIG } from "@/lib/council/modes/decompose";
 import { handleBrainstormStream } from "@/lib/council/modes/brainstorm";
 import type { BrainstormConfig } from "@/lib/council/modes/brainstorm";
 import { DEFAULT_BRAINSTORM_CONFIG } from "@/lib/council/modes/brainstorm";
+import { handleFactCheckStream } from "@/lib/council/modes/fact-check";
+import type { FactCheckConfig } from "@/lib/council/modes/fact-check";
+import { DEFAULT_FACT_CHECK_CONFIG } from "@/lib/council/modes/fact-check";
 import {
   createConversation,
   createMessage,
@@ -186,7 +189,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review", "tournament", "confidence_weighted", "decompose", "brainstorm"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review", "tournament", "confidence_weighted", "decompose", "brainstorm", "fact_check"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -952,6 +955,75 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: brainstormConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "fact_check") {
+          // --- Fact-Check mode ---
+          const contentToCheck = modeConfig?.contentToCheck as string | undefined;
+          const generatorModel = modeConfig?.generatorModel as string | undefined;
+          const extractorModel =
+            (modeConfig?.extractorModel as string | undefined) ??
+            DEFAULT_FACT_CHECK_CONFIG.extractorModel;
+          const checkerModels =
+            (modeConfig?.checkerModels as string[] | undefined) ??
+            DEFAULT_FACT_CHECK_CONFIG.checkerModels;
+          const reporterModel =
+            (modeConfig?.reporterModel as string | undefined) ??
+            DEFAULT_FACT_CHECK_CONFIG.reporterModel;
+          const maxContentLength =
+            (modeConfig?.maxContentLength as number | undefined) ??
+            DEFAULT_FACT_CHECK_CONFIG.maxContentLength;
+          const factCheckTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_FACT_CHECK_CONFIG.timeoutMs;
+
+          // Validate: either contentToCheck or generatorModel required
+          if (!contentToCheck && !generatorModel) {
+            emit({
+              type: "error",
+              message: "Either contentToCheck or generatorModel must be provided.",
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate: checker count 1-4
+          if (checkerModels.length < 1 || checkerModels.length > 4) {
+            emit({
+              type: "error",
+              message: "Fact-check mode requires 1-4 checker models.",
+            });
+            controller.close();
+            return;
+          }
+
+          const factCheckConfig: FactCheckConfig = {
+            contentToCheck,
+            generatorModel,
+            extractorModel,
+            checkerModels,
+            reporterModel,
+            maxContentLength,
+            timeoutMs: factCheckTimeoutMs,
+          };
+
+          const stages = await handleFactCheckStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: factCheckConfig,
           });
 
           // Persist deliberation stages
