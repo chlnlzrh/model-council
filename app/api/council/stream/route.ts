@@ -64,6 +64,9 @@ import { DEFAULT_CONFIDENCE_CONFIG } from "@/lib/council/modes/confidence-weight
 import { handleDecomposeStream } from "@/lib/council/modes/decompose";
 import type { DecomposeConfig } from "@/lib/council/modes/decompose";
 import { DEFAULT_DECOMPOSE_CONFIG } from "@/lib/council/modes/decompose";
+import { handleBrainstormStream } from "@/lib/council/modes/brainstorm";
+import type { BrainstormConfig } from "@/lib/council/modes/brainstorm";
+import { DEFAULT_BRAINSTORM_CONFIG } from "@/lib/council/modes/brainstorm";
 import {
   createConversation,
   createMessage,
@@ -183,7 +186,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review", "tournament", "confidence_weighted", "decompose"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review", "tournament", "confidence_weighted", "decompose", "brainstorm"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -870,6 +873,85 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: decomposeConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "brainstorm") {
+          // --- Brainstorm mode ---
+          const brainstormModels =
+            (modeConfig?.models as string[] | undefined) ??
+            DEFAULT_BRAINSTORM_CONFIG.models;
+          const curatorModel =
+            (modeConfig?.curatorModel as string | undefined) ??
+            DEFAULT_BRAINSTORM_CONFIG.curatorModel;
+          const refinerModel =
+            (modeConfig?.refinerModel as string | undefined) ??
+            DEFAULT_BRAINSTORM_CONFIG.refinerModel;
+          const minIdeasPerModel =
+            (modeConfig?.minIdeasPerModel as number | undefined) ??
+            DEFAULT_BRAINSTORM_CONFIG.minIdeasPerModel;
+          const maxClusters =
+            (modeConfig?.maxClusters as number | undefined) ??
+            DEFAULT_BRAINSTORM_CONFIG.maxClusters;
+          const brainstormTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_BRAINSTORM_CONFIG.timeoutMs;
+
+          // Validate model count (3-6)
+          if (brainstormModels.length < 3 || brainstormModels.length > 6) {
+            emit({
+              type: "error",
+              message: "Brainstorm mode requires 3-6 models.",
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate minIdeasPerModel (3-10)
+          if (minIdeasPerModel < 3 || minIdeasPerModel > 10) {
+            emit({
+              type: "error",
+              message: "minIdeasPerModel must be between 3 and 10.",
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate maxClusters (3-8)
+          if (maxClusters < 3 || maxClusters > 8) {
+            emit({
+              type: "error",
+              message: "maxClusters must be between 3 and 8.",
+            });
+            controller.close();
+            return;
+          }
+
+          const brainstormConfig: BrainstormConfig = {
+            models: brainstormModels,
+            curatorModel,
+            refinerModel,
+            minIdeasPerModel,
+            maxClusters,
+            timeoutMs: brainstormTimeoutMs,
+          };
+
+          const stages = await handleBrainstormStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: brainstormConfig,
           });
 
           // Persist deliberation stages
