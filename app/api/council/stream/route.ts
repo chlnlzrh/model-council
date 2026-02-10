@@ -40,6 +40,9 @@ import { DEFAULT_PANEL_CONFIG } from "@/lib/council/modes/specialist-panel";
 import { handleJuryStream } from "@/lib/council/modes/jury";
 import type { JuryConfig } from "@/lib/council/modes/jury";
 import { DEFAULT_JURY_CONFIG } from "@/lib/council/modes/jury";
+import { handleDebateStream } from "@/lib/council/modes/debate";
+import type { DebateConfig } from "@/lib/council/modes/debate";
+import { DEFAULT_DEBATE_CONFIG } from "@/lib/council/modes/debate";
 import {
   createConversation,
   createMessage,
@@ -159,7 +162,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -355,6 +358,39 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: juryConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "debate") {
+          // --- Debate mode ---
+          const debateModels =
+            (modeConfig?.models as string[] | undefined) ??
+            DEFAULT_DEBATE_CONFIG.models;
+          const debateTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_DEBATE_CONFIG.timeoutMs;
+
+          const debateConfig: DebateConfig = {
+            models: debateModels,
+            timeoutMs: debateTimeoutMs,
+          };
+
+          const stages = await handleDebateStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: debateConfig,
           });
 
           // Persist deliberation stages
