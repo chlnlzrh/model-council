@@ -61,6 +61,9 @@ import { DEFAULT_TOURNAMENT_CONFIG } from "@/lib/council/modes/tournament";
 import { handleConfidenceWeightedStream } from "@/lib/council/modes/confidence-weighted";
 import type { ConfidenceConfig } from "@/lib/council/modes/confidence-weighted";
 import { DEFAULT_CONFIDENCE_CONFIG } from "@/lib/council/modes/confidence-weighted";
+import { handleDecomposeStream } from "@/lib/council/modes/decompose";
+import type { DecomposeConfig } from "@/lib/council/modes/decompose";
+import { DEFAULT_DECOMPOSE_CONFIG } from "@/lib/council/modes/decompose";
 import {
   createConversation,
   createMessage,
@@ -180,7 +183,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review", "tournament", "confidence_weighted"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review", "tournament", "confidence_weighted", "decompose"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -802,6 +805,71 @@ export async function POST(request: NextRequest) {
             messageId: assistantMsg.id,
             config: cwConfig,
             history,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "decompose") {
+          // --- Decompose mode ---
+          const plannerModel =
+            (modeConfig?.plannerModel as string | undefined) ??
+            DEFAULT_DECOMPOSE_CONFIG.plannerModel;
+          const workerModels =
+            (modeConfig?.workerModels as string[] | undefined) ??
+            DEFAULT_DECOMPOSE_CONFIG.workerModels;
+          const assemblerModel =
+            (modeConfig?.assemblerModel as string | undefined) ??
+            DEFAULT_DECOMPOSE_CONFIG.assemblerModel;
+          const maxTasks =
+            (modeConfig?.maxTasks as number | undefined) ??
+            DEFAULT_DECOMPOSE_CONFIG.maxTasks;
+          const decomposeTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_DECOMPOSE_CONFIG.timeoutMs;
+
+          // Validate worker count (1-5)
+          if (workerModels.length < 1 || workerModels.length > 5) {
+            emit({
+              type: "error",
+              message: "Decompose mode requires 1-5 worker models.",
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate maxTasks (3-8)
+          if (maxTasks < 3 || maxTasks > 8) {
+            emit({
+              type: "error",
+              message: "maxTasks must be between 3 and 8.",
+            });
+            controller.close();
+            return;
+          }
+
+          const decomposeConfig: DecomposeConfig = {
+            plannerModel,
+            workerModels,
+            assemblerModel,
+            maxTasks,
+            timeoutMs: decomposeTimeoutMs,
+          };
+
+          const stages = await handleDecomposeStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: decomposeConfig,
           });
 
           // Persist deliberation stages
