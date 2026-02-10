@@ -43,6 +43,9 @@ import { DEFAULT_JURY_CONFIG } from "@/lib/council/modes/jury";
 import { handleDebateStream } from "@/lib/council/modes/debate";
 import type { DebateConfig } from "@/lib/council/modes/debate";
 import { DEFAULT_DEBATE_CONFIG } from "@/lib/council/modes/debate";
+import { handleDelphiStream } from "@/lib/council/modes/delphi";
+import type { DelphiConfig } from "@/lib/council/modes/delphi";
+import { DEFAULT_DELPHI_CONFIG } from "@/lib/council/modes/delphi";
 import {
   createConversation,
   createMessage,
@@ -162,7 +165,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -391,6 +394,65 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: debateConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "delphi") {
+          // --- Delphi mode ---
+          const panelistModels =
+            (modeConfig?.panelistModels as string[] | undefined) ??
+            DEFAULT_DELPHI_CONFIG.panelistModels;
+          const facilitatorModel =
+            (modeConfig?.facilitatorModel as string | undefined) ??
+            DEFAULT_DELPHI_CONFIG.facilitatorModel;
+          const delphiMaxRounds =
+            (modeConfig?.maxRounds as number | undefined) ??
+            DEFAULT_DELPHI_CONFIG.maxRounds;
+          const numericThreshold =
+            (modeConfig?.numericConvergenceThreshold as number | undefined) ??
+            DEFAULT_DELPHI_CONFIG.numericConvergenceThreshold;
+          const qualitativeThreshold =
+            (modeConfig?.qualitativeConvergenceThreshold as number | undefined) ??
+            DEFAULT_DELPHI_CONFIG.qualitativeConvergenceThreshold;
+          const delphiTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_DELPHI_CONFIG.timeoutMs;
+
+          // Facilitator must not be in panelist list
+          if (panelistModels.includes(facilitatorModel)) {
+            emit({
+              type: "error",
+              message: "Facilitator model must not be one of the panelist models.",
+            });
+            controller.close();
+            return;
+          }
+
+          const delphiConfig: DelphiConfig = {
+            panelistModels,
+            facilitatorModel,
+            maxRounds: delphiMaxRounds,
+            numericConvergenceThreshold: numericThreshold,
+            qualitativeConvergenceThreshold: qualitativeThreshold,
+            timeoutMs: delphiTimeoutMs,
+          };
+
+          const stages = await handleDelphiStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: delphiConfig,
           });
 
           // Persist deliberation stages
