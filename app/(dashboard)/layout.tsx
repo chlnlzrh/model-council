@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useModelConfig } from "@/hooks/use-model-config";
+import type { DeliberationMode } from "@/lib/council/types";
 
 interface Conversation {
   id: string;
   title: string;
+  mode: string;
 }
 
 interface DashboardContextValue {
@@ -19,7 +21,9 @@ interface DashboardContextValue {
   setActiveId: (id: string | null) => void;
   handleNew: () => void;
   updateTitle: (id: string, title: string) => void;
-  addConversation: (id: string, title: string) => void;
+  addConversation: (id: string, title: string, mode?: string) => void;
+  selectedMode: DeliberationMode;
+  setSelectedMode: (mode: DeliberationMode) => void;
   modelConfig: {
     councilModels: string[];
     chairmanModel: string;
@@ -34,6 +38,8 @@ const DashboardContext = createContext<DashboardContextValue>({
   handleNew: () => {},
   updateTitle: () => {},
   addConversation: () => {},
+  selectedMode: "council",
+  setSelectedMode: () => {},
   modelConfig: { councilModels: [], chairmanModel: "" },
   updateModelConfig: () => {},
 });
@@ -51,6 +57,7 @@ export default function DashboardLayout({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<DeliberationMode>("council");
   const { config: modelConfig, updateConfig: updateModelConfig } = useModelConfig();
 
   // Load conversations from DB
@@ -58,12 +65,15 @@ export default function DashboardLayout({
     if (!session?.user) return;
     fetch("/api/conversations")
       .then((res) => (res.ok ? res.json() : []))
-      .then((data: Conversation[]) => setConversations(data))
+      .then((data: Array<{ id: string; title: string; mode?: string }>) =>
+        setConversations(data.map((c) => ({ id: c.id, title: c.title, mode: c.mode ?? "council" })))
+      )
       .catch(() => {});
   }, [session?.user]);
 
   const handleNew = useCallback(() => {
     setActiveId(null);
+    setSelectedMode("council");
     setSidebarOpen(false);
   }, []);
 
@@ -78,15 +88,15 @@ export default function DashboardLayout({
     );
   }, []);
 
-  const addConversation = useCallback((id: string, title: string) => {
+  const addConversation = useCallback((id: string, title: string, mode?: string) => {
     setConversations((prev) => {
       if (prev.some((c) => c.id === id)) {
-        return prev.map((c) => (c.id === id ? { ...c, title } : c));
+        return prev.map((c) => (c.id === id ? { ...c, title, mode: mode ?? c.mode } : c));
       }
-      return [{ id, title }, ...prev];
+      return [{ id, title, mode: mode ?? selectedMode }, ...prev];
     });
     setActiveId(id);
-  }, []);
+  }, [selectedMode]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -130,6 +140,8 @@ export default function DashboardLayout({
             handleNew,
             updateTitle,
             addConversation,
+            selectedMode,
+            setSelectedMode,
             modelConfig,
             updateModelConfig,
           }}

@@ -10,6 +10,7 @@ import { Stage1Panel } from "./stage1-panel";
 import { Stage2Panel } from "./stage2-panel";
 import { Stage3Panel } from "./stage3-panel";
 import { ChatInput } from "./chat-input";
+import { getModeStageLabel, getModeStageTotalCount } from "@/lib/council/mode-stages";
 import { Download } from "lucide-react";
 
 interface HistoryMessage {
@@ -288,7 +289,10 @@ export function CouncilView({
       <ChatInput
         onSend={handleSend}
         isLoading={stream.isLoading}
-        currentStage={stream.currentStage}
+        mode="council"
+        stageName={stream.currentStage > 0 ? getModeStageLabel("council", `stage${stream.currentStage}_start`) : null}
+        stageIndex={stream.currentStage}
+        stageTotal={getModeStageTotalCount("council")}
         elapsedMs={stream.elapsedMs}
       />
     </div>

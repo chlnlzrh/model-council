@@ -4,28 +4,33 @@ import { useState, useRef, useCallback } from "react";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-
-const STAGE_LABELS: Record<number, string> = {
-  1: "Collecting responses",
-  2: "Ranking responses",
-  3: "Synthesizing",
-};
+import type { DeliberationMode } from "@/lib/council/types";
+import { getModeDefinition } from "@/lib/council/modes/index";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
   isLoading: boolean;
-  currentStage: number;
+  mode: DeliberationMode;
+  stageName: string | null;
+  stageIndex: number;
+  stageTotal: number;
   elapsedMs: number;
 }
 
 export function ChatInput({
   onSend,
   isLoading,
-  currentStage,
+  mode,
+  stageName,
+  stageIndex,
+  stageTotal,
   elapsedMs,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const modeDef = getModeDefinition(mode);
+  const modeName = modeDef?.name ?? "Council";
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
@@ -46,13 +51,17 @@ export function ChatInput({
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
-    // Auto-resize
     const el = e.target;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   };
 
   const elapsedSec = Math.floor(elapsedMs / 1000);
+
+  const statusText =
+    isLoading && stageIndex > 0 && stageName
+      ? `Stage ${stageIndex} of ${stageTotal} · ${stageName}... (${elapsedSec}s)`
+      : "Enter to send · Shift+Enter for new line";
 
   return (
     <div className="border-t border-border bg-background px-4 py-3">
@@ -62,7 +71,11 @@ export function ChatInput({
           value={value}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder={isLoading ? "Council is deliberating..." : "Ask the council anything..."}
+          placeholder={
+            isLoading
+              ? `${modeName} is deliberating...`
+              : `Ask the ${modeName.toLowerCase()} anything...`
+          }
           disabled={isLoading}
           rows={1}
           className="min-h-[40px] max-h-[120px] resize-none text-xs"
@@ -78,9 +91,7 @@ export function ChatInput({
         </Button>
       </div>
       <p className="mx-auto mt-1 max-w-3xl text-center text-[10px] text-muted-foreground">
-        {isLoading && currentStage > 0
-          ? `Stage ${currentStage} of 3 · ${STAGE_LABELS[currentStage]}... (${elapsedSec}s)`
-          : "Enter to send · Shift+Enter for new line"}
+        {statusText}
       </p>
     </div>
   );

@@ -7,9 +7,10 @@ import { Moon, Sun, Plus, MessageSquare, Settings, BarChart3, LogOut } from "luc
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getModeDefinition } from "@/lib/council/modes/index";
 
 interface SidebarProps {
-  conversations: { id: string; title: string }[];
+  conversations: { id: string; title: string; mode?: string }[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -58,6 +59,11 @@ export function Sidebar({
           >
             <MessageSquare className="h-3 w-3 flex-shrink-0" />
             <span className="truncate">{c.title}</span>
+            {c.mode && c.mode !== "council" && (
+              <span className="ml-auto flex-shrink-0 text-[9px] text-muted-foreground">
+                {getModeDefinition(c.mode)?.name ?? c.mode}
+              </span>
+            )}
           </button>
         ))}
 

@@ -273,6 +273,7 @@ export async function getConversationWithStages(conversationId: string) {
   if (!conv) return null;
 
   const msgs = await getMessagesByConversation(conversationId);
+  const isCouncil = conv.mode === "council" || !conv.mode;
 
   const messagesWithStages = await Promise.all(
     msgs.map(async (msg) => {
@@ -280,15 +281,34 @@ export async function getConversationWithStages(conversationId: string) {
         return { ...msg, stages: null };
       }
 
-      const [stage1, stage2, stage3] = await Promise.all([
-        getStage1ByMessage(msg.id),
-        getStage2ByMessage(msg.id),
-        getStage3ByMessage(msg.id),
-      ]);
+      if (isCouncil) {
+        const [stage1, stage2, stage3] = await Promise.all([
+          getStage1ByMessage(msg.id),
+          getStage2ByMessage(msg.id),
+          getStage3ByMessage(msg.id),
+        ]);
+        return {
+          ...msg,
+          stages: { stage1, stage2, stage3 },
+        };
+      }
 
+      // Non-council modes: load from deliberationStages table
+      const rows = await getDeliberationStagesByMessage(msg.id);
+      const deliberationStages: Record<string, unknown> = {};
+      for (const row of rows) {
+        const existing = deliberationStages[row.stageType];
+        if (existing && Array.isArray(existing)) {
+          (existing as unknown[]).push(row.parsedData ?? row);
+        } else if (existing) {
+          deliberationStages[row.stageType] = [existing, row.parsedData ?? row];
+        } else {
+          deliberationStages[row.stageType] = row.parsedData ?? row;
+        }
+      }
       return {
         ...msg,
-        stages: { stage1, stage2, stage3 },
+        stages: { deliberationStages },
       };
     })
   );
