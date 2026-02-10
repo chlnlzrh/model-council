@@ -31,5 +31,6 @@ export const config = {
     "/api/council/:path*",
     "/api/models/:path*",
     "/api/presets/:path*",
+    "/api/analytics/:path*",
   ],
 };
