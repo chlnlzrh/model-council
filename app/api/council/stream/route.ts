@@ -55,6 +55,9 @@ import { DEFAULT_BLUEPRINT_CONFIG } from "@/lib/council/modes/blueprint";
 import { handlePeerReviewStream } from "@/lib/council/modes/peer-review";
 import type { PeerReviewConfig, ReviewType } from "@/lib/council/modes/peer-review";
 import { DEFAULT_PEER_REVIEW_CONFIG } from "@/lib/council/modes/peer-review";
+import { handleTournamentStream } from "@/lib/council/modes/tournament";
+import type { TournamentConfig } from "@/lib/council/modes/tournament";
+import { DEFAULT_TOURNAMENT_CONFIG } from "@/lib/council/modes/tournament";
 import {
   createConversation,
   createMessage,
@@ -174,7 +177,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review", "tournament"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -677,6 +680,63 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: peerReviewConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "tournament") {
+          // --- Tournament mode ---
+          const contestantModels =
+            (modeConfig?.contestantModels as string[] | undefined) ??
+            DEFAULT_TOURNAMENT_CONFIG.contestantModels;
+          const judgeModel =
+            (modeConfig?.judgeModel as string | undefined) ??
+            DEFAULT_TOURNAMENT_CONFIG.judgeModel;
+          const tournamentTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_TOURNAMENT_CONFIG.timeoutMs;
+
+          // Validate contestant count (4-8)
+          if (contestantModels.length < 4 || contestantModels.length > 8) {
+            emit({
+              type: "error",
+              message: "Tournament mode requires 4-8 contestant models.",
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate judge not in contestant list
+          if (contestantModels.includes(judgeModel)) {
+            emit({
+              type: "error",
+              message: "Judge model must not be in the contestant list.",
+            });
+            controller.close();
+            return;
+          }
+
+          const tournamentConfig: TournamentConfig = {
+            contestantModels,
+            judgeModel,
+            timeoutMs: tournamentTimeoutMs,
+          };
+
+          const stages = await handleTournamentStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: tournamentConfig,
           });
 
           // Persist deliberation stages
