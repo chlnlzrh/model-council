@@ -58,6 +58,9 @@ import { DEFAULT_PEER_REVIEW_CONFIG } from "@/lib/council/modes/peer-review";
 import { handleTournamentStream } from "@/lib/council/modes/tournament";
 import type { TournamentConfig } from "@/lib/council/modes/tournament";
 import { DEFAULT_TOURNAMENT_CONFIG } from "@/lib/council/modes/tournament";
+import { handleConfidenceWeightedStream } from "@/lib/council/modes/confidence-weighted";
+import type { ConfidenceConfig } from "@/lib/council/modes/confidence-weighted";
+import { DEFAULT_CONFIDENCE_CONFIG } from "@/lib/council/modes/confidence-weighted";
 import {
   createConversation,
   createMessage,
@@ -177,7 +180,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review", "tournament"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint", "peer_review", "tournament", "confidence_weighted"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -737,6 +740,68 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: tournamentConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "confidence_weighted") {
+          // --- Confidence-Weighted mode ---
+          const cwModels =
+            (modeConfig?.models as string[] | undefined) ??
+            DEFAULT_CONFIDENCE_CONFIG.models;
+          const synthesisModel =
+            (modeConfig?.synthesisModel as string | undefined) ??
+            DEFAULT_CONFIDENCE_CONFIG.synthesisModel;
+          const temperature =
+            (modeConfig?.temperature as number | undefined) ??
+            DEFAULT_CONFIDENCE_CONFIG.temperature;
+          const cwTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_CONFIDENCE_CONFIG.timeoutMs;
+
+          // Validate model count (2-6)
+          if (cwModels.length < 2 || cwModels.length > 6) {
+            emit({
+              type: "error",
+              message: "Confidence-weighted mode requires 2-6 models.",
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate temperature range (0.1-5.0)
+          if (temperature < 0.1 || temperature > 5.0) {
+            emit({
+              type: "error",
+              message: "Temperature must be between 0.1 and 5.0.",
+            });
+            controller.close();
+            return;
+          }
+
+          const cwConfig: ConfidenceConfig = {
+            models: cwModels,
+            synthesisModel,
+            temperature,
+            timeoutMs: cwTimeoutMs,
+          };
+
+          const stages = await handleConfidenceWeightedStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: cwConfig,
+            history,
           });
 
           // Persist deliberation stages
