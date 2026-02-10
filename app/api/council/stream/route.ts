@@ -49,6 +49,9 @@ import { DEFAULT_DELPHI_CONFIG } from "@/lib/council/modes/delphi";
 import { handleRedTeamStream } from "@/lib/council/modes/red-team";
 import type { RedTeamConfig } from "@/lib/council/modes/red-team";
 import { DEFAULT_RED_TEAM_CONFIG } from "@/lib/council/modes/red-team";
+import { handleBlueprintStream } from "@/lib/council/modes/blueprint";
+import type { BlueprintConfig, DocumentType } from "@/lib/council/modes/blueprint";
+import { DEFAULT_BLUEPRINT_CONFIG } from "@/lib/council/modes/blueprint";
 import {
   createConversation,
   createMessage,
@@ -168,7 +171,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team", "blueprint"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -515,6 +518,89 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: redTeamConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "blueprint") {
+          // --- Blueprint mode ---
+          const documentType =
+            (modeConfig?.documentType as DocumentType | undefined) ??
+            DEFAULT_BLUEPRINT_CONFIG.documentType;
+          const architectModel =
+            (modeConfig?.architectModel as string | undefined) ??
+            DEFAULT_BLUEPRINT_CONFIG.architectModel;
+          const authorModels =
+            (modeConfig?.authorModels as string[] | undefined) ??
+            DEFAULT_BLUEPRINT_CONFIG.authorModels;
+          const assemblerModel =
+            (modeConfig?.assemblerModel as string | undefined) ??
+            DEFAULT_BLUEPRINT_CONFIG.assemblerModel;
+          const blueprintTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_BLUEPRINT_CONFIG.timeoutMs;
+
+          // Validate author models count
+          if (authorModels.length < 1 || authorModels.length > 6) {
+            emit({
+              type: "error",
+              message: "Blueprint mode requires 1-6 author models.",
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate document type
+          const validDocTypes: DocumentType[] = [
+            "architecture_blueprint",
+            "technical_design_document",
+            "implementation_roadmap",
+            "cost_analysis_report",
+            "security_assessment",
+            "custom",
+          ];
+          if (!validDocTypes.includes(documentType)) {
+            emit({
+              type: "error",
+              message: `Invalid document type: "${documentType}".`,
+            });
+            controller.close();
+            return;
+          }
+
+          // Validate source material length
+          if (question.length > 200_000) {
+            emit({
+              type: "error",
+              message: "Source material must be under 200,000 characters.",
+            });
+            controller.close();
+            return;
+          }
+
+          const blueprintConfig: BlueprintConfig = {
+            documentType,
+            architectModel,
+            authorModels,
+            assemblerModel,
+            timeoutMs: blueprintTimeoutMs,
+          };
+
+          const stages = await handleBlueprintStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: blueprintConfig,
           });
 
           // Persist deliberation stages
