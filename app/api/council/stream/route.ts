@@ -31,6 +31,9 @@ import { getModeDefinition, isValidMode } from "@/lib/council/modes";
 import { handleVoteStream } from "@/lib/council/modes/vote";
 import type { VoteConfig } from "@/lib/council/modes/vote";
 import { DEFAULT_VOTE_CONFIG } from "@/lib/council/modes/vote";
+import { handleChainStream } from "@/lib/council/modes/chain";
+import type { ChainConfig, ChainStepConfig } from "@/lib/council/modes/chain";
+import { DEFAULT_CHAIN_CONFIG } from "@/lib/council/modes/chain";
 import {
   createConversation,
   createMessage,
@@ -150,7 +153,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -215,6 +218,40 @@ export async function POST(request: NextRequest) {
             messageId: assistantMsg.id,
             config: voteConfig,
             history,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "chain") {
+          // --- Chain mode ---
+          // Parse chain-specific config from modeConfig
+          const chainSteps: ChainStepConfig[] =
+            (modeConfig?.steps as ChainStepConfig[] | undefined) ??
+            DEFAULT_CHAIN_CONFIG.steps;
+          const chainTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_CHAIN_CONFIG.timeoutMs;
+
+          const chainConfig: ChainConfig = {
+            steps: chainSteps,
+            timeoutMs: chainTimeoutMs,
+          };
+
+          const stages = await handleChainStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: chainConfig,
           });
 
           // Persist deliberation stages
