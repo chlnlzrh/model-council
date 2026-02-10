@@ -46,6 +46,9 @@ import { DEFAULT_DEBATE_CONFIG } from "@/lib/council/modes/debate";
 import { handleDelphiStream } from "@/lib/council/modes/delphi";
 import type { DelphiConfig } from "@/lib/council/modes/delphi";
 import { DEFAULT_DELPHI_CONFIG } from "@/lib/council/modes/delphi";
+import { handleRedTeamStream } from "@/lib/council/modes/red-team";
+import type { RedTeamConfig } from "@/lib/council/modes/red-team";
+import { DEFAULT_RED_TEAM_CONFIG } from "@/lib/council/modes/red-team";
 import {
   createConversation,
   createMessage,
@@ -165,7 +168,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Modes that are not yet implemented — return 501
-  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi"];
+  const IMPLEMENTED_MODES: DeliberationMode[] = ["council", "vote", "chain", "specialist_panel", "jury", "debate", "delphi", "red_team"];
   if (!IMPLEMENTED_MODES.includes(mode)) {
     const modeDef = getModeDefinition(mode);
     return new Response(
@@ -453,6 +456,65 @@ export async function POST(request: NextRequest) {
             conversationId: convId,
             messageId: assistantMsg.id,
             config: delphiConfig,
+          });
+
+          // Persist deliberation stages
+          await saveDeliberationStages(assistantMsg.id, stages);
+
+          // Title generation (only for new conversations)
+          if (isNewConversation) {
+            const title = await generateTitle(question);
+            await updateConversationTitle(convId, title);
+            emit({ type: "title_complete", data: { title } });
+          }
+
+          // Complete
+          emit({ type: "complete" });
+        } else if (mode === "red_team") {
+          // --- Red Team mode ---
+          const generatorModel =
+            (modeConfig?.generatorModel as string | undefined) ??
+            DEFAULT_RED_TEAM_CONFIG.generatorModel;
+          const attackerModel =
+            (modeConfig?.attackerModel as string | undefined) ??
+            DEFAULT_RED_TEAM_CONFIG.attackerModel;
+          const synthesizerModel =
+            (modeConfig?.synthesizerModel as string | undefined) ??
+            generatorModel;
+          const redTeamRounds =
+            (modeConfig?.rounds as number | undefined) ??
+            DEFAULT_RED_TEAM_CONFIG.rounds;
+          const redTeamTimeoutMs =
+            (modeConfig?.timeoutMs as number | undefined) ??
+            DEFAULT_RED_TEAM_CONFIG.timeoutMs;
+          const maxInputLength =
+            (modeConfig?.maxInputLength as number | undefined) ??
+            DEFAULT_RED_TEAM_CONFIG.maxInputLength;
+
+          // Validate: generator and attacker must differ
+          if (generatorModel === attackerModel) {
+            emit({
+              type: "error",
+              message: "Generator and attacker must be different models for adversarial integrity.",
+            });
+            controller.close();
+            return;
+          }
+
+          const redTeamConfig: RedTeamConfig = {
+            generatorModel,
+            attackerModel,
+            synthesizerModel,
+            rounds: Math.max(1, Math.min(3, redTeamRounds)),
+            timeoutMs: redTeamTimeoutMs,
+            maxInputLength,
+          };
+
+          const stages = await handleRedTeamStream(controller, encoder, emit, {
+            question,
+            conversationId: convId,
+            messageId: assistantMsg.id,
+            config: redTeamConfig,
           });
 
           // Persist deliberation stages
