@@ -12,12 +12,12 @@ export function AnalyticsEmpty() {
       </div>
       <h2 className="text-sm font-bold mb-1">No analytics yet</h2>
       <p className="text-xs text-muted-foreground mb-4 max-w-xs">
-        Start a council session to see model performance data, win rates, and
+        Start a deliberation session to see model performance data, win rates, and
         response time comparisons.
       </p>
       <Link href="/council">
         <Button size="sm" className="text-xs h-8">
-          Start a Council Session
+          Start a Deliberation Session
         </Button>
       </Link>
     </div>

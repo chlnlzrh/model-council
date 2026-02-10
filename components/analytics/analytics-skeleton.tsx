@@ -6,9 +6,16 @@ import { Card, CardContent } from "@/components/ui/card";
 export function AnalyticsSkeleton() {
   return (
     <div className="space-y-6">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
+      {/* Tab bar skeleton */}
+      <div className="flex gap-1">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-8 w-28 rounded-md" />
+        ))}
+      </div>
+
+      {/* Summary cards — 6 cards in 3 cols */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
           <Card key={i}>
             <CardContent className="flex items-center gap-3 p-4">
               <Skeleton className="h-8 w-8 shrink-0 rounded-md" />

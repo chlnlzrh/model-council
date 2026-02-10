@@ -102,3 +102,197 @@ export interface RawResponseTimeRow {
 export interface RawMessageDateRow {
   createdAt: Date;
 }
+
+export interface RawDeliberationStageRow {
+  messageId: string;
+  stageType: string;
+  stageOrder: number;
+  model: string | null;
+  role: string | null;
+  parsedData: unknown;
+  responseTimeMs: number | null;
+  mode: string;
+}
+
+// ---------------------------------------------------------------------------
+// Mode Distribution
+// ---------------------------------------------------------------------------
+
+export interface ModeDistributionEntry {
+  mode: string;
+  displayName: string;
+  count: number;
+  percentage: number;
+}
+
+export interface DailyModeUsageEntry {
+  date: string;
+  mode: string;
+  queryCount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Extended Summary (Overview tab)
+// ---------------------------------------------------------------------------
+
+export interface ExtendedAnalyticsSummary extends AnalyticsSummary {
+  modesUsed: number;
+  mostActiveMode: string | null;
+  mostActiveModeDisplayName: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Cross-Mode Model Comparison
+// ---------------------------------------------------------------------------
+
+export interface CrossModeModelModeEntry {
+  mode: string;
+  sessions: number;
+  avgResponseTimeMs: number;
+  winRate?: number;
+  avgScore?: number;
+}
+
+export interface CrossModeModelEntry {
+  model: string;
+  displayName: string;
+  modes: CrossModeModelModeEntry[];
+  overallScore: number;
+  totalSessions: number;
+}
+
+// ---------------------------------------------------------------------------
+// Mode-Specific Metrics (discriminated union)
+// ---------------------------------------------------------------------------
+
+export interface CouncilMetrics {
+  kind: "council";
+  winRates: WinRateEntry[];
+  avgRankings: Array<{ model: string; displayName: string; avgRank: number }>;
+}
+
+export interface VoteMetrics {
+  kind: "vote";
+  winnerDistribution: Array<{ model: string; displayName: string; wins: number }>;
+  tiebreakerRate: number;
+  avgWinMargin: number;
+}
+
+export interface JuryMetrics {
+  kind: "jury";
+  verdictDistribution: Array<{ verdict: string; count: number }>;
+  dimensionAverages: Array<{ dimension: string; avgScore: number }>;
+  jurorConsensusRate: number;
+}
+
+export interface DebateMetrics {
+  kind: "debate";
+  revisionDecisionDist: Array<{ decision: string; count: number }>;
+  winnerDistribution: Array<{ model: string; displayName: string; wins: number }>;
+  avgWordCountDelta: number;
+}
+
+export interface TournamentMetrics {
+  kind: "tournament";
+  championDistribution: Array<{ model: string; displayName: string; wins: number }>;
+  matchupWinRates: Array<{ model: string; displayName: string; winRate: number; matches: number }>;
+}
+
+export interface DelphiMetrics {
+  kind: "delphi";
+  avgConvergenceRounds: number;
+  confidenceDistribution: Array<{ bucket: string; count: number }>;
+}
+
+export interface ConfidenceMetrics {
+  kind: "confidence_weighted";
+  confidenceHistogram: Array<{ bucket: string; count: number }>;
+  outlierRate: number;
+  avgConfidence: number;
+}
+
+export interface RedTeamMetrics {
+  kind: "red_team";
+  severityDistribution: Array<{ severity: string; count: number }>;
+  defenseAcceptRate: number;
+}
+
+export interface ChainMetrics {
+  kind: "chain";
+  avgWordCountProgression: Array<{ step: number; avgWordCount: number }>;
+  mandateDistribution: Array<{ mandate: string; count: number }>;
+  skipRate: number;
+}
+
+export interface SpecialistPanelMetrics {
+  kind: "specialist_panel";
+  roleDistribution: Array<{ role: string; count: number }>;
+}
+
+export interface BlueprintMetrics {
+  kind: "blueprint";
+  avgSectionCount: number;
+  avgWordCount: number;
+  todoMarkerRate: number;
+}
+
+export interface PeerReviewMetrics {
+  kind: "peer_review";
+  findingSeverityDist: Array<{ severity: string; count: number }>;
+  rubricScoreAverages: Array<{ criterion: string; avgScore: number }>;
+  consensusRate: number;
+}
+
+export interface DecomposeMetrics {
+  kind: "decompose";
+  avgParallelismEfficiency: number;
+  taskSuccessRate: number;
+  avgWaveCount: number;
+}
+
+export interface BrainstormMetrics {
+  kind: "brainstorm";
+  avgIdeaCount: number;
+  clusterScoreAverages: Array<{ dimension: string; avgScore: number }>;
+}
+
+export interface FactCheckMetrics {
+  kind: "fact_check";
+  claimTypeDistribution: Array<{ type: string; count: number }>;
+  verdictDistribution: Array<{ verdict: string; count: number }>;
+  avgAgreementRate: number;
+}
+
+export type ModeMetrics =
+  | CouncilMetrics
+  | VoteMetrics
+  | JuryMetrics
+  | DebateMetrics
+  | TournamentMetrics
+  | DelphiMetrics
+  | ConfidenceMetrics
+  | RedTeamMetrics
+  | ChainMetrics
+  | SpecialistPanelMetrics
+  | BlueprintMetrics
+  | PeerReviewMetrics
+  | DecomposeMetrics
+  | BrainstormMetrics
+  | FactCheckMetrics;
+
+// ---------------------------------------------------------------------------
+// Extended API Responses
+// ---------------------------------------------------------------------------
+
+export interface ExtendedAnalyticsData extends AnalyticsData {
+  modeDistribution: ModeDistributionEntry[];
+  crossModeModels: CrossModeModelEntry[];
+}
+
+export interface ModeAnalyticsData {
+  mode: string;
+  modeName: string;
+  queryCount: number;
+  responseTimes: ResponseTimeEntry[];
+  metrics: ModeMetrics;
+}

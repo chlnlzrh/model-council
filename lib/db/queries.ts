@@ -530,3 +530,83 @@ export async function getConversationMode(conversationId: string) {
     .limit(1);
   return (conv?.mode as DeliberationMode) ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// Analytics — Mode Distribution
+// ---------------------------------------------------------------------------
+
+export async function getModeDistributionForUser(
+  userId: string,
+  fromDate: Date | null
+) {
+  return db
+    .select({
+      mode: conversations.mode,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(conversations)
+    .where(
+      fromDate
+        ? and(eq(conversations.userId, userId), gte(conversations.createdAt, fromDate))
+        : eq(conversations.userId, userId)
+    )
+    .groupBy(conversations.mode);
+}
+
+// ---------------------------------------------------------------------------
+// Analytics — Deliberation Stages (for mode-specific metrics)
+// ---------------------------------------------------------------------------
+
+export async function getDeliberationStagesForAnalytics(
+  userId: string,
+  fromDate: Date | null,
+  mode?: string
+) {
+  const baseConditions = fromDate
+    ? and(eq(conversations.userId, userId), gte(messages.createdAt, fromDate))
+    : eq(conversations.userId, userId);
+
+  const conditions = mode
+    ? and(baseConditions, eq(conversations.mode, mode))
+    : baseConditions;
+
+  return db
+    .select({
+      messageId: deliberationStages.messageId,
+      stageType: deliberationStages.stageType,
+      stageOrder: deliberationStages.stageOrder,
+      model: deliberationStages.model,
+      role: deliberationStages.role,
+      parsedData: deliberationStages.parsedData,
+      responseTimeMs: deliberationStages.responseTimeMs,
+      mode: conversations.mode,
+    })
+    .from(deliberationStages)
+    .innerJoin(messages, eq(deliberationStages.messageId, messages.id))
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(conditions);
+}
+
+// ---------------------------------------------------------------------------
+// Analytics — Deliberation Response Times (non-council modes)
+// ---------------------------------------------------------------------------
+
+export async function getDeliberationResponseTimesForUser(
+  userId: string,
+  fromDate: Date | null
+) {
+  return db
+    .select({
+      model: deliberationStages.model,
+      responseTimeMs: deliberationStages.responseTimeMs,
+      mode: conversations.mode,
+    })
+    .from(deliberationStages)
+    .innerJoin(messages, eq(deliberationStages.messageId, messages.id))
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(
+      fromDate
+        ? and(eq(conversations.userId, userId), gte(messages.createdAt, fromDate))
+        : eq(conversations.userId, userId)
+    );
+}

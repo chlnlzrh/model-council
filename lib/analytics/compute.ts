@@ -13,11 +13,16 @@ import type {
   ResponseTimeEntry,
   DailyUsageEntry,
   AnalyticsSummary,
+  ExtendedAnalyticsSummary,
+  ModeDistributionEntry,
+  CrossModeModelEntry,
+  CrossModeModelModeEntry,
   RawRankingRow,
   RawLabelMapRow,
   RawResponseTimeRow,
   RawMessageDateRow,
 } from "./types";
+import { MODE_REGISTRY } from "@/lib/council/modes/index";
 
 // ---------------------------------------------------------------------------
 // Date preset → Date conversion
@@ -198,4 +203,113 @@ export function computeSummary(
     topModel: topModel?.model ?? null,
     topModelDisplayName: topModel?.displayName ?? null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Mode Distribution
+// ---------------------------------------------------------------------------
+
+export function computeModeDistribution(
+  modeCounts: Array<{ mode: string; count: number }>
+): ModeDistributionEntry[] {
+  const total = modeCounts.reduce((sum, m) => sum + m.count, 0);
+  if (total === 0) return [];
+
+  return modeCounts
+    .map((m) => ({
+      mode: m.mode,
+      displayName:
+        MODE_REGISTRY[m.mode as keyof typeof MODE_REGISTRY]?.name ?? m.mode,
+      count: m.count,
+      percentage: m.count / total,
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// ---------------------------------------------------------------------------
+// Extended Summary
+// ---------------------------------------------------------------------------
+
+export function computeExtendedSummary(
+  totalSessions: number,
+  totalQueries: number,
+  responseTimes: ResponseTimeEntry[],
+  winRates: WinRateEntry[],
+  modeDistribution: ModeDistributionEntry[]
+): ExtendedAnalyticsSummary {
+  const base = computeSummary(totalSessions, totalQueries, responseTimes, winRates);
+  const mostActive = modeDistribution.length > 0 ? modeDistribution[0] : null;
+
+  return {
+    ...base,
+    modesUsed: modeDistribution.length,
+    mostActiveMode: mostActive?.mode ?? null,
+    mostActiveModeDisplayName: mostActive?.displayName ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Cross-Mode Response Times → CrossModeModelEntry[]
+// ---------------------------------------------------------------------------
+
+export function computeCrossModeResponseTimes(
+  rows: Array<{ model: string | null; responseTimeMs: number | null; mode: string }>
+): CrossModeModelEntry[] {
+  // Group by (model, mode) → {sum, count}
+  const grouped = new Map<string, Map<string, { sum: number; count: number }>>();
+
+  for (const row of rows) {
+    if (!row.model || row.responseTimeMs == null) continue;
+
+    if (!grouped.has(row.model)) {
+      grouped.set(row.model, new Map());
+    }
+    const modeMap = grouped.get(row.model)!;
+    const existing = modeMap.get(row.mode);
+    if (existing) {
+      existing.sum += row.responseTimeMs;
+      existing.count++;
+    } else {
+      modeMap.set(row.mode, { sum: row.responseTimeMs, count: 1 });
+    }
+  }
+
+  const entries: CrossModeModelEntry[] = [];
+
+  for (const [model, modeMap] of grouped) {
+    const modes: CrossModeModelModeEntry[] = [];
+    let totalSessions = 0;
+    let totalMs = 0;
+    let totalSamples = 0;
+
+    for (const [mode, stats] of modeMap) {
+      const avgMs = Math.round(stats.sum / stats.count);
+      modes.push({
+        mode,
+        sessions: stats.count,
+        avgResponseTimeMs: avgMs,
+      });
+      totalSessions += stats.count;
+      totalMs += stats.sum;
+      totalSamples += stats.count;
+    }
+
+    // Composite score: inverse of avg response time, normalized 0-100
+    const avgResponseMs = totalSamples > 0 ? totalMs / totalSamples : 0;
+    // Score: faster = higher. Cap at 60s → 0 score.
+    const overallScore =
+      avgResponseMs > 0
+        ? Math.round(Math.max(0, 100 - (avgResponseMs / 60000) * 100))
+        : 0;
+
+    entries.push({
+      model,
+      displayName: getModelDisplayName(model),
+      modes: modes.sort((a, b) => a.mode.localeCompare(b.mode)),
+      overallScore,
+      totalSessions,
+    });
+  }
+
+  return entries.sort((a, b) => b.overallScore - a.overallScore);
 }
